@@ -1,0 +1,78 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fxer"
+version = "0.1.0"
+description = "Automated XAUUSD intraday trading system - Data Infrastructure"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [
+    { name = "fxEr Team" }
+]
+
+dependencies = [
+    # Core
+    "numpy>=1.26.0",
+    "pandas>=2.1.0",
+
+    # Technical analysis
+    "pandas-ta>=0.3.14b",
+
+    # Storage
+    "questdb>=2.0.0",
+    "redis>=5.0.0",
+
+    # Messaging
+    "pyzmq>=25.0.0",
+
+    # Broker connectivity
+    "ib_insync>=0.9.86",
+    "tzdata>=2024.1",  # Required for IBKR timezone parsing
+
+    # Machine Learning
+    "xgboost>=2.0.0",
+    "shap>=0.44.0",
+    "torch>=2.0.0",
+    "scikit-learn>=1.4.0",
+    "lightgbm>=4.0.0",
+
+    # Configuration & Utils
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "structlog>=23.2.0",
+    "python-dateutil>=2.8.0",
+    "msgpack>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "hypothesis>=6.92.0",
+    "ruff>=0.1.0",
+    "mypy>=1.7.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fxer"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-v --cov=src/fxer --cov-report=term-missing"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true

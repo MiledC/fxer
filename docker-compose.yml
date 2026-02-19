@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  questdb:
+    image: questdb/questdb:7.3.10
+    container_name: fxer-questdb
+    ports:
+      - "9000:9000"   # Web console
+      - "9009:9009"   # ILP (InfluxDB Line Protocol)
+      - "8812:8812"   # PostgreSQL wire protocol
+    volumes:
+      - questdb-data:/var/lib/questdb
+    environment:
+      - QDB_LOG_W_STDOUT_LEVEL=ERROR
+      - QDB_PG_USER=admin
+      - QDB_PG_PASSWORD=quest
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: fxer-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+
+volumes:
+  questdb-data:
+  redis-data:
