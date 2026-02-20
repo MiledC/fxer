@@ -31,6 +31,7 @@ from fxer.data.normalizer.validators import (
     validate_volume,
 )
 from fxer.data.storage.questdb_client import QuestDBClient
+from fxer.features.cross_asset import CrossAssetEnricher
 from fxer.features.engine import FeatureEngine
 
 logger = logging.getLogger(__name__)
@@ -200,12 +201,39 @@ def main(argv: list[str] | None = None) -> int:
         print("No bars to process. Exiting.")
         return 1
 
+    # --- Load cross-asset bars (DXY_SYNTH + VIX) if computing for XAUUSD ---
+    enricher: CrossAssetEnricher | None = None
+    dxy_lookup: dict[datetime, float] = {}
+    vix_lookup: dict[datetime, float] = {}
+
+    if symbol == "XAUUSD" and not args.csv:
+        print("\nLoading cross-asset bars (DXY_SYNTH + VIX)...")
+        bar_start = bars[0].timestamp
+        bar_end = bars[-1].timestamp
+        settings_ca = Settings()
+        with QuestDBClient(settings_ca) as ca_client:
+            dxy_bars = ca_client.query_bars("DXY_SYNTH", timeframe, bar_start, bar_end)
+            vix_bars = ca_client.query_bars("VIX", timeframe, bar_start, bar_end)
+        dxy_lookup = {b.timestamp: float(b.close) for b in dxy_bars}
+        vix_lookup = {b.timestamp: float(b.close) for b in vix_bars}
+        print(f"  DXY_SYNTH bars: {len(dxy_lookup)}")
+        print(f"  VIX bars:       {len(vix_lookup)}")
+        enricher = CrossAssetEnricher()
+
     # --- Compute features ---
     print(f"\nComputing features for {len(bars)} bars...")
-    engine = FeatureEngine()
+    engine = FeatureEngine(cross_asset=enricher)
     features: list[FeatureVector] = []
 
     for i, bar in enumerate(bars):
+        # Feed cross-asset closes aligned by timestamp
+        if enricher is not None:
+            ts = bar.timestamp
+            if ts in dxy_lookup:
+                enricher.update_dxy(dxy_lookup[ts])
+            if ts in vix_lookup:
+                enricher.update_vix(vix_lookup[ts])
+
         fv = engine.compute_features(bar)
         features.append(fv)
 

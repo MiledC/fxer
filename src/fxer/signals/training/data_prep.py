@@ -13,7 +13,7 @@ from fxer.config.settings import Settings, settings as default_settings
 from fxer.core.exceptions import InsufficientDataError
 from fxer.core.types import Timeframe
 from fxer.data.storage.questdb_client import QuestDBClient
-from fxer.signals.base import CROSS_ASSET_COLUMNS, FEATURE_COLUMNS, STORED_FEATURE_COLUMNS
+from fxer.signals.base import FEATURE_COLUMNS
 
 logger = logging.getLogger(__name__)
 
@@ -140,8 +140,18 @@ class DatasetBuilder:
         merged = merged.loc[valid_mask]
         labels = labels.loc[valid_mask]
 
-        # Extract feature columns, fill any remaining NaN with 0
-        X = merged[FEATURE_COLUMNS].fillna(0.0)
+        # Extract feature columns — drop rows with any NaN features
+        X = merged[FEATURE_COLUMNS]
+        nan_rows = X.isna().any(axis=1).sum()
+        if nan_rows > 0:
+            logger.warning(
+                "Dropping %d rows (%.1f%%) with NaN features",
+                nan_rows,
+                100 * nan_rows / len(X),
+            )
+            valid = X.notna().all(axis=1)
+            X = X.loc[valid]
+            labels = labels.loc[valid]
         y = labels.values.astype(np.float64)
 
         logger.info("Built flat dataset: X=%s, y=%s", X.shape, y.shape)
@@ -196,12 +206,7 @@ class DatasetBuilder:
         start: datetime,
         end: datetime,
     ) -> pd.DataFrame:
-        """Query features table from QuestDB and return as DataFrame.
-
-        Only queries columns that exist in the QuestDB schema
-        (STORED_FEATURE_COLUMNS). Cross-asset columns are filled with
-        0.0 so the resulting DataFrame matches FEATURE_COLUMNS order.
-        """
+        """Query features table from QuestDB and return as DataFrame."""
         conn = self._db._get_pg_connection()
         try:
             query = """
@@ -213,7 +218,7 @@ class DatasetBuilder:
                   AND timestamp <= %s
                   AND warmup_complete = true
                 ORDER BY timestamp ASC
-            """.format(cols=", ".join(STORED_FEATURE_COLUMNS))
+            """.format(cols=", ".join(FEATURE_COLUMNS))
 
             df = pd.read_sql(
                 query,
@@ -222,13 +227,31 @@ class DatasetBuilder:
                 parse_dates=["timestamp"],
             )
             df = df.set_index("timestamp")
+            df = df[FEATURE_COLUMNS]
 
-            # Add cross-asset placeholder columns (Phase 1b+)
-            for col in CROSS_ASSET_COLUMNS:
-                df[col] = 0.0
+            # Fail loudly if any feature column is entirely NULL
+            all_null = df.columns[df.isna().all()]
+            if len(all_null) > 0:
+                raise InsufficientDataError(
+                    f"Feature columns are entirely NULL (never computed): "
+                    f"{list(all_null)}. Run backfill_cross_asset or "
+                    f"recompute features before training.",
+                    required=len(FEATURE_COLUMNS),
+                    available=len(FEATURE_COLUMNS) - len(all_null),
+                )
 
-            # Ensure canonical column order
-            return df[FEATURE_COLUMNS]
+            # Warn on columns with high NULL rates (>50%)
+            null_pct = df.isna().mean()
+            sparse = null_pct[null_pct > 0.5]
+            if len(sparse) > 0:
+                for col, pct in sparse.items():
+                    logger.warning(
+                        "Feature '%s' is %.0f%% NULL — check data coverage",
+                        col,
+                        pct * 100,
+                    )
+
+            return df
         finally:
             conn.close()
 

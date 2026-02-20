@@ -1,0 +1,5 @@
+{
+  "neutral_threshold": 0.55,
+  "high_conf_threshold": 0.7,
+  "lookback": 48
+}

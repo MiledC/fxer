@@ -1,0 +1,9 @@
+{
+  "lookback": 48,
+  "n_features": 21,
+  "dropout": 0.2,
+  "learning_rate": 0.001,
+  "batch_size": 64,
+  "max_epochs": 100,
+  "patience": 15
+}

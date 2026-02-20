@@ -35,6 +35,7 @@ from fxer.data.normalizer.validators import (
     validate_volume,
 )
 from fxer.data.storage.questdb_client import QuestDBClient
+from fxer.features.cross_asset import CrossAssetEnricher
 from fxer.features.engine import FeatureEngine
 
 logger = logging.getLogger(__name__)
@@ -229,6 +230,7 @@ def compute_and_store_features(
     client: QuestDBClient,
     all_bars: dict[Timeframe, list[NormalizedBar]],
     summary: PipelineSummary,
+    symbol: str = "",
 ) -> None:
     """Compute and store features for all timeframes."""
     print("\nComputing and storing features...")
@@ -238,14 +240,37 @@ def compute_and_store_features(
         if not bars:
             continue
 
+        # Build cross-asset enricher for XAUUSD
+        enricher: CrossAssetEnricher | None = None
+        dxy_lookup: dict = {}
+        vix_lookup: dict = {}
+
+        if symbol == "XAUUSD":
+            bar_start = bars[0].timestamp
+            bar_end = bars[-1].timestamp
+            dxy_bars = client.query_bars("DXY_SYNTH", tf, bar_start, bar_end)
+            vix_bars = client.query_bars("VIX", tf, bar_start, bar_end)
+            dxy_lookup = {b.timestamp: float(b.close) for b in dxy_bars}
+            vix_lookup = {b.timestamp: float(b.close) for b in vix_bars}
+            enricher = CrossAssetEnricher()
+            print(f"  {tf.value}: Cross-asset bars — DXY: {len(dxy_lookup)}, VIX: {len(vix_lookup)}")
+
         # Fresh engine for each timeframe (independent indicator state)
-        engine = FeatureEngine()
+        engine = FeatureEngine(cross_asset=enricher)
         warmup_bars = engine.get_warmup_bars()
 
         features_stored = 0
         total = len(bars)
 
         for i, bar in enumerate(bars):
+            # Feed cross-asset closes aligned by timestamp
+            if enricher is not None:
+                ts = bar.timestamp
+                if ts in dxy_lookup:
+                    enricher.update_dxy(dxy_lookup[ts])
+                if ts in vix_lookup:
+                    enricher.update_vix(vix_lookup[ts])
+
             fv = engine.compute_features(bar)
             client.insert_features(fv)
             features_stored += 1
@@ -345,7 +370,7 @@ def main(argv: list[str] | None = None) -> int:
 
         # Compute and store features
         if not args.no_features:
-            compute_and_store_features(client, all_bars, summary)
+            compute_and_store_features(client, all_bars, summary, symbol=symbol)
 
     print_summary(summary, dry_run=False, no_features=args.no_features)
     return 0

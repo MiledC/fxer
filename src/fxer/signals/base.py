@@ -1,7 +1,6 @@
 """Abstract base class for signal models."""
 
 from abc import ABC, abstractmethod
-from dataclasses import fields
 from pathlib import Path
 from typing import Any
 
@@ -10,8 +9,8 @@ import numpy as np
 from fxer.core.events import FeatureVector
 from fxer.signals.types import ModelPrediction
 
-# Phase 1a features: stored in QuestDB features table today.
-STORED_FEATURE_COLUMNS: list[str] = [
+# All feature columns stored in QuestDB features table (canonical order).
+FEATURE_COLUMNS: list[str] = [
     "rsi_14",
     "rsi_7",
     "macd_line",
@@ -29,19 +28,11 @@ STORED_FEATURE_COLUMNS: list[str] = [
     "hour_of_day",
     "day_of_week",
     "is_month_turn",
-]
-
-# Phase 1b+ cross-asset features (not yet in QuestDB).
-CROSS_ASSET_COLUMNS: list[str] = [
     "dxy_return_1h",
     "dxy_rsi_14",
     "vix_level",
     "vix_change",
-    "tips_yield_10y",
 ]
-
-# Full canonical column order for all model inputs.
-FEATURE_COLUMNS: list[str] = STORED_FEATURE_COLUMNS + CROSS_ASSET_COLUMNS
 
 
 def feature_vector_to_array(fv: FeatureVector) -> np.ndarray:

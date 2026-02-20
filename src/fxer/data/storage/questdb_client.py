@@ -52,7 +52,11 @@ CREATE TABLE IF NOT EXISTS features (
     hour_of_day INT,
     day_of_week INT,
     is_month_turn BOOLEAN,
-    warmup_complete BOOLEAN
+    warmup_complete BOOLEAN,
+    dxy_return_1h DOUBLE,
+    dxy_rsi_14 DOUBLE,
+    vix_level DOUBLE,
+    vix_change DOUBLE
 ) timestamp(timestamp) PARTITION BY DAY WAL
 DEDUP UPSERT KEYS(symbol, timeframe, timestamp);
 """
@@ -98,13 +102,24 @@ class QuestDBClient:
             ) from exc
 
     def init_tables(self) -> None:
-        """Create tables if they don't exist using PG wire protocol."""
+        """Create tables if they don't exist using PG wire protocol.
+
+        Also adds any new columns to existing tables (QuestDB's
+        CREATE TABLE IF NOT EXISTS won't alter an existing schema).
+        """
         conn = self._get_pg_connection()
         try:
             conn.autocommit = True
             with conn.cursor() as cur:
                 cur.execute(BARS_TABLE_DDL)
                 cur.execute(FEATURES_TABLE_DDL)
+                # Migrate: add cross-asset columns if missing
+                for col in ("dxy_return_1h", "dxy_rsi_14", "vix_level", "vix_change"):
+                    try:
+                        cur.execute(f"ALTER TABLE features ADD COLUMN {col} DOUBLE")
+                        logger.info("Added column features.%s", col)
+                    except Exception:
+                        pass  # column already exists
             logger.info("QuestDB tables initialized")
         except Exception as exc:
             raise StorageError(
@@ -185,6 +200,7 @@ class QuestDBClient:
                 for field_name in (
                     "rsi_14", "rsi_7", "macd_line", "macd_signal", "macd_histogram",
                     "bb_upper", "bb_middle", "bb_lower", "bb_width", "atr_14",
+                    "dxy_return_1h", "dxy_rsi_14", "vix_level", "vix_change",
                 ):
                     val = getattr(features, field_name)
                     if val is not None:

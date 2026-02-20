@@ -130,12 +130,11 @@ class FeatureVector:
     # Meta
     warmup_complete: bool = False  # All indicators have sufficient data
 
-    # Phase 1b+ placeholders (cross-asset features)
+    # Cross-asset features (DXY + VIX)
     dxy_return_1h: float | None = None
     dxy_rsi_14: float | None = None
     vix_level: float | None = None
     vix_change: float | None = None
-    tips_yield_10y: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
@@ -165,7 +164,6 @@ class FeatureVector:
             "dxy_rsi_14": self.dxy_rsi_14,
             "vix_level": self.vix_level,
             "vix_change": self.vix_change,
-            "tips_yield_10y": self.tips_yield_10y,
         }
 
     @classmethod
@@ -197,7 +195,6 @@ class FeatureVector:
             dxy_rsi_14=data.get("dxy_rsi_14"),
             vix_level=data.get("vix_level"),
             vix_change=data.get("vix_change"),
-            tips_yield_10y=data.get("tips_yield_10y"),
         )
 
 

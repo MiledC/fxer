@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 from collections import deque
+from typing import TYPE_CHECKING
 
 from fxer.config.constants import MAX_WARMUP_BARS
 from fxer.core.events import FeatureVector, NormalizedBar
 from fxer.features.technical.indicators import ATR, MACD, RSI, BollingerBands
 from fxer.features.temporal.time_features import compute_time_features
+
+if TYPE_CHECKING:
+    from fxer.features.cross_asset import CrossAssetEnricher
 
 
 class FeatureEngine:
@@ -17,13 +21,16 @@ class FeatureEngine:
     via ``compute_features`` or in bulk via ``compute_batch``.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, cross_asset: CrossAssetEnricher | None = None) -> None:
         # Technical indicators
         self._rsi_14 = RSI(key="rsi_14")
         self._rsi_7 = RSI(key="rsi_7")
         self._macd = MACD()
         self._bb = BollingerBands()
         self._atr = ATR()
+
+        # Optional cross-asset enricher (DXY + VIX)
+        self._cross_asset = cross_asset
 
         # Track bars received
         self._bar_count: int = 0
@@ -74,7 +81,7 @@ class FeatureEngine:
         # Temporal features
         time_feats = compute_time_features(bar.timestamp)
 
-        return FeatureVector(
+        fv = FeatureVector(
             symbol=bar.symbol,
             timestamp=bar.timestamp,
             timeframe=bar.timeframe,
@@ -97,6 +104,11 @@ class FeatureEngine:
             is_month_turn=time_feats["is_month_turn"],
             warmup_complete=self._warmup_complete,
         )
+
+        if self._cross_asset is not None:
+            fv = self._cross_asset.enrich(fv)
+
+        return fv
 
     def compute_batch(self, bars: list[NormalizedBar]) -> list[FeatureVector]:
         """Compute features for a batch of bars in order."""

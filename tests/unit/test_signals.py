@@ -52,13 +52,12 @@ def _make_feature_vector(**kwargs):
         "dxy_rsi_14": 48.0,
         "vix_level": 15.5,
         "vix_change": 0.3,
-        "tips_yield_10y": 1.8,
     }
     defaults.update(kwargs)
     return FeatureVector(**defaults)
 
 
-def _make_synthetic_data(n_samples=500, n_features=22):
+def _make_synthetic_data(n_samples=500, n_features=21):
     """Create synthetic data for model testing."""
     rng = np.random.RandomState(42)
     X = rng.randn(n_samples, n_features).astype(np.float64)
@@ -220,9 +219,9 @@ class TestFeatureVectorConversion:
         assert arr[atr_idx] == pytest.approx(5.0)
 
     def test_none_replaced_with_zero(self):
-        fv = _make_feature_vector(tips_yield_10y=None)
+        fv = _make_feature_vector(dxy_return_1h=None)
         arr = feature_vector_to_array(fv)
-        idx = FEATURE_COLUMNS.index("tips_yield_10y")
+        idx = FEATURE_COLUMNS.index("dxy_return_1h")
         assert arr[idx] == 0.0
 
     def test_bool_converted_to_float(self):
@@ -354,7 +353,7 @@ class TestFeatureScaler:
 
 class TestXGBoostSignalModel:
     def test_fit_and_predict(self):
-        X, y = _make_synthetic_data(n_samples=300, n_features=22)
+        X, y = _make_synthetic_data(n_samples=300, n_features=21)
         model = XGBoostSignalModel(n_estimators=50, max_depth=3)
 
         metrics = model.fit(X, y)
@@ -368,7 +367,7 @@ class TestXGBoostSignalModel:
         assert pred.prob_long + pred.prob_short == pytest.approx(1.0, abs=1e-5)
 
     def test_predict_batch(self):
-        X, y = _make_synthetic_data(n_samples=300, n_features=22)
+        X, y = _make_synthetic_data(n_samples=300, n_features=21)
         model = XGBoostSignalModel(n_estimators=50, max_depth=3)
         model.fit(X, y)
 
@@ -377,7 +376,7 @@ class TestXGBoostSignalModel:
         assert np.allclose(probs.sum(axis=1), 1.0, atol=1e-5)
 
     def test_shap_values(self):
-        X, y = _make_synthetic_data(n_samples=300, n_features=22)
+        X, y = _make_synthetic_data(n_samples=300, n_features=21)
         model = XGBoostSignalModel(n_estimators=50, max_depth=3)
         model.fit(X, y)
 
@@ -386,7 +385,7 @@ class TestXGBoostSignalModel:
         assert len(shap_vals) <= 5
 
     def test_save_load_roundtrip(self):
-        X, y = _make_synthetic_data(n_samples=300, n_features=22)
+        X, y = _make_synthetic_data(n_samples=300, n_features=21)
         model = XGBoostSignalModel(n_estimators=50, max_depth=3)
         model.fit(X, y)
 
@@ -404,10 +403,10 @@ class TestXGBoostSignalModel:
     def test_predict_unfitted_raises(self):
         model = XGBoostSignalModel()
         with pytest.raises(Exception):
-            model.predict(np.zeros(22))
+            model.predict(np.zeros(21))
 
     def test_validation_data(self):
-        X, y = _make_synthetic_data(n_samples=300, n_features=22)
+        X, y = _make_synthetic_data(n_samples=300, n_features=21)
         model = XGBoostSignalModel(n_estimators=50, max_depth=3)
         metrics = model.fit(X[:200], y[:200], validation_data=(X[200:], y[200:]))
         assert "val_accuracy" in metrics
@@ -419,11 +418,11 @@ class TestXGBoostSignalModel:
 class TestCNNLSTMSignalModel:
     def test_fit_and_predict_sequence(self):
         """Test fitting on 3D sequence data and predicting."""
-        X, y = _make_synthetic_data(n_samples=300, n_features=22)
+        X, y = _make_synthetic_data(n_samples=300, n_features=21)
         # Build sequences
         lookback = 16  # Smaller for test speed
         n_seq = len(X) - lookback + 1
-        X_seq = np.zeros((n_seq, lookback, 22))
+        X_seq = np.zeros((n_seq, lookback, 21))
         for i in range(n_seq):
             X_seq[i] = X[i : i + lookback]
         y_seq = y[lookback - 1 :]
@@ -443,9 +442,9 @@ class TestCNNLSTMSignalModel:
 
     def test_predict_batch(self):
         lookback = 16
-        X, y = _make_synthetic_data(n_samples=200, n_features=22)
+        X, y = _make_synthetic_data(n_samples=200, n_features=21)
         n_seq = len(X) - lookback + 1
-        X_seq = np.zeros((n_seq, lookback, 22))
+        X_seq = np.zeros((n_seq, lookback, 21))
         for i in range(n_seq):
             X_seq[i] = X[i : i + lookback]
         y_seq = y[lookback - 1 :]
@@ -459,9 +458,9 @@ class TestCNNLSTMSignalModel:
     def test_streaming_predict_with_history(self):
         """Test single-step streaming prediction with history buffer."""
         lookback = 8
-        X, y = _make_synthetic_data(n_samples=100, n_features=22)
+        X, y = _make_synthetic_data(n_samples=100, n_features=21)
         n_seq = len(X) - lookback + 1
-        X_seq = np.zeros((n_seq, lookback, 22))
+        X_seq = np.zeros((n_seq, lookback, 21))
         for i in range(n_seq):
             X_seq[i] = X[i : i + lookback]
         y_seq = y[lookback - 1 :]
@@ -483,9 +482,9 @@ class TestCNNLSTMSignalModel:
 
     def test_save_load_roundtrip(self):
         lookback = 8
-        X, y = _make_synthetic_data(n_samples=100, n_features=22)
+        X, y = _make_synthetic_data(n_samples=100, n_features=21)
         n_seq = len(X) - lookback + 1
-        X_seq = np.zeros((n_seq, lookback, 22))
+        X_seq = np.zeros((n_seq, lookback, 21))
         for i in range(n_seq):
             X_seq[i] = X[i : i + lookback]
         y_seq = y[lookback - 1 :]
@@ -506,7 +505,7 @@ class TestCNNLSTMSignalModel:
     def test_3d_input_required(self):
         model = CNNLSTMSignalModel()
         with pytest.raises(ValueError, match="3D input"):
-            model.fit(np.zeros((100, 22)), np.zeros(100))
+            model.fit(np.zeros((100, 21)), np.zeros(100))
 
 
 # ---------- Stacking Ensemble Tests ----------
@@ -515,7 +514,7 @@ class TestCNNLSTMSignalModel:
 class TestStackingEnsemble:
     def test_oos_only_meta_learner(self):
         """Verify meta-learner trains on OOS predictions only."""
-        X, y = _make_synthetic_data(n_samples=500, n_features=22)
+        X, y = _make_synthetic_data(n_samples=500, n_features=21)
 
         ensemble = StackingEnsemble(
             xgb_model=XGBoostSignalModel(n_estimators=20, max_depth=3),
@@ -530,7 +529,7 @@ class TestStackingEnsemble:
         assert metrics["meta_n_samples"] < len(y) * 0.5
 
     def test_predict(self):
-        X, y = _make_synthetic_data(n_samples=500, n_features=22)
+        X, y = _make_synthetic_data(n_samples=500, n_features=21)
 
         ensemble = StackingEnsemble(
             xgb_model=XGBoostSignalModel(n_estimators=20, max_depth=3),
@@ -543,7 +542,7 @@ class TestStackingEnsemble:
         assert 0 <= pred.prob_long <= 1
 
     def test_save_load_roundtrip(self):
-        X, y = _make_synthetic_data(n_samples=500, n_features=22)
+        X, y = _make_synthetic_data(n_samples=500, n_features=21)
 
         ensemble = StackingEnsemble(
             xgb_model=XGBoostSignalModel(n_estimators=20, max_depth=3),
