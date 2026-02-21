@@ -57,6 +57,18 @@ class Settings(BaseSettings):
     signal_horizon_bars: int = 12  # Look-ahead bars for labelling (12 × 5m = 1h)
     signal_threshold_atr_mult: float = 0.5  # Min move = 0.5 × ATR for label
 
+    # Regime classification settings
+    regime_hmm_states: int = 3
+    regime_hmm_covariance_type: str = "diag"
+    regime_adx_trend_threshold: float = 25.0
+    regime_adx_range_threshold: float = 20.0
+    regime_atr_expansion_threshold: float = 1.5
+    regime_confidence_minimum: float = 0.60
+    regime_persistence_bars: int = 3
+    regime_model_dir: str = "./models"
+    regime_pelt_window_size: int = 100
+    regime_pelt_min_size: int = 10
+
 
 # Global settings instance
 settings = Settings()

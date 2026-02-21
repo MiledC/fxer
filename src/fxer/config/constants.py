@@ -29,6 +29,8 @@ LONDON_SESSION = TradingSession(name="London", start_hour=7, end_hour=16)
 NY_SESSION = TradingSession(name="New York", start_hour=12, end_hour=21)
 OVERLAP_SESSION = TradingSession(name="Overlap", start_hour=12, end_hour=16)
 ASIAN_SESSION = TradingSession(name="Asian", start_hour=22, end_hour=7)
+LONDON_OPEN_SESSION = TradingSession(name="London Open", start_hour=7, end_hour=8)
+LATE_NY_SESSION = TradingSession(name="Late NY", start_hour=17, end_hour=22)
 
 
 # Feature computation constants
@@ -38,6 +40,7 @@ INDICATOR_PARAMS = {
     "macd": {"fast": 12, "slow": 26, "signal": 9},
     "bb": {"period": 20, "std_dev": 2},
     "atr": {"period": 14},
+    "adx_14": {"period": 14},
 }
 
 # Minimum bars needed for each indicator to produce valid output
@@ -47,6 +50,7 @@ INDICATOR_WARMUP = {
     "macd": 26 + 9,  # slow period + signal period
     "bb": 20,
     "atr": 14,
+    "adx_14": 28,  # 2x period for ADX smoothing
 }
 
 # Maximum warmup needed across all indicators

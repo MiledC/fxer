@@ -326,3 +326,133 @@ class ATR:
         self._true_ranges.clear()
         self._atr = None
         self._count = 0
+
+
+class ADX:
+    """Average Directional Index for trend strength measurement.
+
+    Uses Wilder smoothing for directional movement, true range, and ADX.
+    Requires 2x period bars: period for DM/TR smoothing + period for DX->ADX smoothing.
+    """
+
+    def __init__(self, period: int | None = None, *, key: str = "adx_14") -> None:
+        params = INDICATOR_PARAMS.get(key, {})
+        self.period: int = period or params.get("period", 14)
+        self.warmup_period: int = INDICATOR_WARMUP.get(key, self.period * 2)
+        self._prev_high: float | None = None
+        self._prev_low: float | None = None
+        self._prev_close: float | None = None
+        self._plus_dm_sum: float = 0.0
+        self._minus_dm_sum: float = 0.0
+        self._tr_sum: float = 0.0
+        self._plus_dm_avg: float | None = None
+        self._minus_dm_avg: float | None = None
+        self._tr_avg: float | None = None
+        self._dx_values: list[float] = []
+        self._adx_avg: float | None = None
+        self._count: int = 0
+
+    @property
+    def ready(self) -> bool:
+        return self._count >= self.warmup_period
+
+    def update(self, high: float, low: float, close: float) -> float | None:
+        """Feed one bar (high, low, close). Returns ADX value or None during warmup."""
+        self._count += 1
+
+        if self._prev_high is None:
+            self._prev_high = high
+            self._prev_low = low
+            self._prev_close = close
+            return None
+
+        # Directional Movement
+        up_move = high - self._prev_high
+        down_move = self._prev_low - low
+        plus_dm = up_move if (up_move > down_move and up_move > 0) else 0.0
+        minus_dm = down_move if (down_move > up_move and down_move > 0) else 0.0
+
+        # True Range
+        tr = max(
+            high - low,
+            abs(high - self._prev_close),
+            abs(low - self._prev_close),
+        )
+
+        self._prev_high = high
+        self._prev_low = low
+        self._prev_close = close
+
+        # Accumulate for initial smoothing
+        if self._count <= self.period:
+            self._plus_dm_sum += plus_dm
+            self._minus_dm_sum += minus_dm
+            self._tr_sum += tr
+            if self._count == self.period:
+                self._plus_dm_avg = self._plus_dm_sum / self.period
+                self._minus_dm_avg = self._minus_dm_sum / self.period
+                self._tr_avg = self._tr_sum / self.period
+            return None
+
+        # Wilder smoothing
+        assert self._plus_dm_avg is not None
+        assert self._minus_dm_avg is not None
+        assert self._tr_avg is not None
+        self._plus_dm_avg = (self._plus_dm_avg * (self.period - 1) + plus_dm) / self.period
+        self._minus_dm_avg = (self._minus_dm_avg * (self.period - 1) + minus_dm) / self.period
+        self._tr_avg = (self._tr_avg * (self.period - 1) + tr) / self.period
+
+        if self._tr_avg == 0.0:
+            return None
+
+        plus_di = 100.0 * self._plus_dm_avg / self._tr_avg
+        minus_di = 100.0 * self._minus_dm_avg / self._tr_avg
+        di_sum = plus_di + minus_di
+
+        if di_sum == 0.0:
+            dx = 0.0
+        else:
+            dx = 100.0 * abs(plus_di - minus_di) / di_sum
+
+        self._dx_values.append(dx)
+
+        # ADX smoothing: need `period` DX values first
+        if len(self._dx_values) < self.period:
+            return None
+
+        if len(self._dx_values) == self.period:
+            self._adx_avg = float(np.mean(self._dx_values))
+            return self._adx_avg
+
+        assert self._adx_avg is not None
+        self._adx_avg = (self._adx_avg * (self.period - 1) + dx) / self.period
+        return self._adx_avg
+
+    def compute_batch(
+        self,
+        highs: NDArray[np.floating],
+        lows: NDArray[np.floating],
+        closes: NDArray[np.floating],
+    ) -> NDArray[np.floating]:
+        """Compute ADX for arrays. Returns array with nan where not ready."""
+        n = len(highs)
+        result = np.full(n, np.nan)
+        for i in range(n):
+            val = self.update(float(highs[i]), float(lows[i]), float(closes[i]))
+            if val is not None:
+                result[i] = val
+        return result
+
+    def reset(self) -> None:
+        self._prev_high = None
+        self._prev_low = None
+        self._prev_close = None
+        self._plus_dm_sum = 0.0
+        self._minus_dm_sum = 0.0
+        self._tr_sum = 0.0
+        self._plus_dm_avg = None
+        self._minus_dm_avg = None
+        self._tr_avg = None
+        self._dx_values.clear()
+        self._adx_avg = None
+        self._count = 0

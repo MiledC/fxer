@@ -158,3 +158,22 @@ class InsufficientDataError(FxerError):
         super().__init__(message, details)
         self.required = required
         self.available = available
+
+
+class RegimeClassificationError(FxerError):
+    """Raised when regime classification fails."""
+
+    def __init__(
+        self,
+        message: str,
+        regime_type: str | None = None,
+        symbol: str | None = None,
+    ):
+        details = {}
+        if regime_type:
+            details["regime_type"] = regime_type
+        if symbol:
+            details["symbol"] = symbol
+        super().__init__(message, details)
+        self.regime_type = regime_type
+        self.symbol = symbol
