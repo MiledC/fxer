@@ -10,7 +10,7 @@ import asyncio
 import logging
 from collections.abc import Generator
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 from fxer.config.symbols import get_symbol_config
@@ -20,8 +20,17 @@ from fxer.data.loaders.ibkr_client import IBKRClient
 
 logger = logging.getLogger(__name__)
 
-# Pagination constants
-MAX_CHUNK_DAYS = 55  # Safe limit for 5m bars (IBKR max is ~60)
+# Max chunk days per timeframe (IBKR historical data limits)
+# See: https://ibkrguides.com/tws/usersguidebook/technicalanalytics/historicallimitations.htm
+MAX_CHUNK_DAYS: dict[Timeframe, int] = {
+    Timeframe.M1: 10,     # 1 min: max ~10 days
+    Timeframe.M5: 55,     # 5 min: max ~60 days, use 55 for safety
+    Timeframe.M15: 55,    # 15 min: similar to 5m
+    Timeframe.H1: 355,    # 1 hour: max ~365 days
+    Timeframe.H4: 355,    # 4 hours: max ~365 days
+    Timeframe.D1: 355,    # 1 day: max ~365 days, use 355 for safety
+}
+DEFAULT_CHUNK_DAYS = 55
 RATE_LIMIT_DELAY = 10.5  # Seconds between requests (stay under 60 req/10min)
 
 # Mapping from Timeframe enum to IBKR bar size strings
@@ -42,8 +51,8 @@ class IBKRLoader:
     Fetches historical bars using the IBKR API and provides them
     through an iterator interface compatible with the data pipeline.
 
-    Automatically paginates large date ranges into ~55-day chunks to
-    stay within IBKR's limits, with rate limiting between requests.
+    Automatically paginates large date ranges into timeframe-appropriate
+    chunks to stay within IBKR's limits, with rate limiting between requests.
 
     Usage::
 
@@ -74,8 +83,8 @@ class IBKRLoader:
     ) -> LoadStats:
         """Fetch historical bars from IBKR with automatic pagination.
 
-        Chunks large date ranges into ~55-day requests to stay within
-        IBKR's limits. Includes rate limiting between requests.
+        Chunks large date ranges into timeframe-appropriate requests to
+        stay within IBKR's limits. Includes rate limiting between requests.
 
         Args:
             symbol: Symbol name (e.g., "XAUUSD", "EURUSD").
@@ -125,7 +134,8 @@ class IBKRLoader:
         bar_size = self._timeframe_to_ibkr(timeframe)
 
         # Calculate chunks (work backwards from end_date)
-        chunks = self._calculate_chunks(start_date, end_date, MAX_CHUNK_DAYS)
+        chunk_days = MAX_CHUNK_DAYS.get(timeframe, DEFAULT_CHUNK_DAYS)
+        chunks = self._calculate_chunks(start_date, end_date, chunk_days)
 
         logger.info(
             "Fetching %s %s data for %s: %s to %s (%d chunks)",
@@ -335,8 +345,13 @@ class IBKRLoader:
         raw_volume = ibkr_bar.volume  # type: ignore[attr-defined]
         volume = None if raw_volume is None or raw_volume < 0 else Decimal(str(raw_volume))
 
+        # IBKR returns datetime.date for daily bars, datetime for intraday
+        ts = ibkr_bar.date  # type: ignore[attr-defined]
+        if isinstance(ts, date) and not isinstance(ts, datetime):
+            ts = datetime(ts.year, ts.month, ts.day, tzinfo=timezone.utc)
+
         return RawBar(
-            timestamp=ibkr_bar.date,  # type: ignore[attr-defined]
+            timestamp=ts,
             open=Decimal(str(ibkr_bar.open)),  # type: ignore[attr-defined]
             high=Decimal(str(ibkr_bar.high)),  # type: ignore[attr-defined]
             low=Decimal(str(ibkr_bar.low)),  # type: ignore[attr-defined]
