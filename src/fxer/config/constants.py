@@ -51,6 +51,7 @@ INDICATOR_WARMUP = {
     "bb": 20,
     "atr": 14,
     "adx_14": 28,  # 2x period for ADX smoothing
+    "price_features": 49,  # Needed for 48-bar momentum
 }
 
 # Maximum warmup needed across all indicators

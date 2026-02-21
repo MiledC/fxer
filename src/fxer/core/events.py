@@ -136,6 +136,13 @@ class FeatureVector:
     vix_level: float | None = None
     vix_change: float | None = None
 
+    # Price-derived features
+    return_1bar: float | None = None
+    return_5bar: float | None = None
+    return_12bar: float | None = None
+    rolling_volatility_20: float | None = None
+    momentum_48: float | None = None
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
@@ -164,6 +171,11 @@ class FeatureVector:
             "dxy_rsi_14": self.dxy_rsi_14,
             "vix_level": self.vix_level,
             "vix_change": self.vix_change,
+            "return_1bar": self.return_1bar,
+            "return_5bar": self.return_5bar,
+            "return_12bar": self.return_12bar,
+            "rolling_volatility_20": self.rolling_volatility_20,
+            "momentum_48": self.momentum_48,
         }
 
     @classmethod
@@ -195,6 +207,11 @@ class FeatureVector:
             dxy_rsi_14=data.get("dxy_rsi_14"),
             vix_level=data.get("vix_level"),
             vix_change=data.get("vix_change"),
+            return_1bar=data.get("return_1bar"),
+            return_5bar=data.get("return_5bar"),
+            return_12bar=data.get("return_12bar"),
+            rolling_volatility_20=data.get("rolling_volatility_20"),
+            momentum_48=data.get("momentum_48"),
         )
 
 

@@ -52,6 +52,12 @@ def _make_feature_vector(**kwargs):
         "dxy_rsi_14": 48.0,
         "vix_level": 15.5,
         "vix_change": 0.3,
+        # Price-derived features
+        "return_1bar": 0.001,
+        "return_5bar": 0.005,
+        "return_12bar": 0.012,
+        "rolling_volatility_20": 0.008,
+        "momentum_48": 0.025,
     }
     defaults.update(kwargs)
     return FeatureVector(**defaults)
@@ -204,6 +210,16 @@ class TestModelPrediction:
 
 
 class TestFeatureVectorConversion:
+    def test_feature_columns_length_is_26(self):
+        """Verify FEATURE_COLUMNS has exactly 26 entries."""
+        assert len(FEATURE_COLUMNS) == 26
+
+    def test_feature_columns_all_valid_attributes(self):
+        """Verify every entry in FEATURE_COLUMNS is a valid FeatureVector attribute."""
+        fv = _make_feature_vector()
+        for col in FEATURE_COLUMNS:
+            assert hasattr(fv, col), f"FeatureVector missing field: {col}"
+
     def test_feature_vector_to_array_shape(self):
         fv = _make_feature_vector()
         arr = feature_vector_to_array(fv)

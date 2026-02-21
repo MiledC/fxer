@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from fxer.config.constants import MAX_WARMUP_BARS
 from fxer.core.events import FeatureVector, NormalizedBar
+from fxer.features.price import PriceFeatures
 from fxer.features.technical.indicators import ATR, MACD, RSI, BollingerBands
 from fxer.features.temporal.time_features import compute_time_features
 
@@ -28,6 +29,9 @@ class FeatureEngine:
         self._macd = MACD()
         self._bb = BollingerBands()
         self._atr = ATR()
+
+        # Price-derived features
+        self._price_features = PriceFeatures()
 
         # Optional cross-asset enricher (DXY + VIX)
         self._cross_asset = cross_asset
@@ -67,6 +71,10 @@ class FeatureEngine:
         bb_upper, bb_middle, bb_lower, bb_width = self._bb.update(close)
         atr_14 = self._atr.update(high, low, close)
 
+        # Price-derived features
+        price_feats = self._price_features.update(close)
+        return_1bar, return_5bar, return_12bar, rolling_vol_20, momentum_48 = price_feats
+
         # Check warmup
         all_ready = all([
             self._rsi_14.ready,
@@ -74,6 +82,7 @@ class FeatureEngine:
             self._macd.ready,
             self._bb.ready,
             self._atr.ready,
+            self._price_features.ready,
         ])
         if all_ready:
             self._warmup_complete = True
@@ -95,6 +104,11 @@ class FeatureEngine:
             bb_lower=bb_lower,
             bb_width=bb_width,
             atr_14=atr_14,
+            return_1bar=return_1bar,
+            return_5bar=return_5bar,
+            return_12bar=return_12bar,
+            rolling_volatility_20=rolling_vol_20,
+            momentum_48=momentum_48,
             is_london_session=time_feats["is_london_session"],
             is_ny_session=time_feats["is_ny_session"],
             is_overlap_session=time_feats["is_overlap_session"],
@@ -121,6 +135,7 @@ class FeatureEngine:
         self._macd.reset()
         self._bb.reset()
         self._atr.reset()
+        self._price_features.reset()
         self._bar_count = 0
         self._warmup_complete = False
         self._buffer.clear()

@@ -94,12 +94,13 @@ class TestQuestDBClient:
         self, mock_sender_cls: MagicMock, settings: Settings, sample_bar: NormalizedBar
     ) -> None:
         mock_sender = MagicMock()
-        mock_sender_cls.from_conf.return_value = mock_sender
+        mock_sender_cls.from_conf.return_value.__enter__ = MagicMock(return_value=mock_sender)
+        mock_sender_cls.from_conf.return_value.__exit__ = MagicMock(return_value=False)
 
         client = QuestDBClient(settings)
         client.insert_bar(sample_bar)
 
-        mock_sender.flush.assert_called_once()
+        mock_sender.row.assert_called_once()
 
     @patch("fxer.data.storage.questdb_client.Sender")
     def test_insert_bars_batch(
@@ -109,12 +110,13 @@ class TestQuestDBClient:
         sample_bars: list[NormalizedBar],
     ) -> None:
         mock_sender = MagicMock()
-        mock_sender_cls.from_conf.return_value = mock_sender
+        mock_sender_cls.from_conf.return_value.__enter__ = MagicMock(return_value=mock_sender)
+        mock_sender_cls.from_conf.return_value.__exit__ = MagicMock(return_value=False)
 
         client = QuestDBClient(settings)
         client.insert_bars(sample_bars)
 
-        mock_sender.flush.assert_called_once()
+        assert mock_sender.row.call_count == 2
 
     @patch("fxer.data.storage.questdb_client.Sender")
     def test_insert_bars_empty_list_noop(
@@ -132,8 +134,9 @@ class TestQuestDBClient:
         sample_bar: NormalizedBar,
     ) -> None:
         mock_sender = MagicMock()
-        mock_sender_cls.from_conf.return_value = mock_sender
-        mock_sender.flush.side_effect = RuntimeError("ILP flush failed")
+        mock_sender.row.side_effect = RuntimeError("ILP row failed")
+        mock_sender_cls.from_conf.return_value.__enter__ = MagicMock(return_value=mock_sender)
+        mock_sender_cls.from_conf.return_value.__exit__ = MagicMock(return_value=False)
 
         client = QuestDBClient(settings)
         with pytest.raises(StorageError, match="Failed to insert 1 bars"):
@@ -147,12 +150,13 @@ class TestQuestDBClient:
         sample_features: FeatureVector,
     ) -> None:
         mock_sender = MagicMock()
-        mock_sender_cls.from_conf.return_value = mock_sender
+        mock_sender_cls.from_conf.return_value.__enter__ = MagicMock(return_value=mock_sender)
+        mock_sender_cls.from_conf.return_value.__exit__ = MagicMock(return_value=False)
 
         client = QuestDBClient(settings)
         client.insert_features(sample_features)
 
-        mock_sender.flush.assert_called_once()
+        mock_sender.row.assert_called_once()
 
     @patch("fxer.data.storage.questdb_client.psycopg2", create=True)
     def test_query_bars_returns_normalized_bars(
@@ -214,32 +218,18 @@ class TestQuestDBClient:
             client = QuestDBClient(settings)
             client.init_tables()
 
-        assert mock_cursor.execute.call_count == 2
+        # 2 DDL + 4 cross-asset migrations + 5 price-feature migrations = 11
+        assert mock_cursor.execute.call_count == 11
 
-    @patch("fxer.data.storage.questdb_client.Sender")
-    def test_close_cleans_up_sender(
-        self, mock_sender_cls: MagicMock, settings: Settings, sample_bar: NormalizedBar
-    ) -> None:
-        mock_sender = MagicMock()
-        mock_sender_cls.from_conf.return_value = mock_sender
-
+    def test_close_is_noop(self, settings: Settings) -> None:
+        """close() is a no-op since Sender uses per-operation context managers."""
         client = QuestDBClient(settings)
-        client.insert_bar(sample_bar)
-        client.close()
+        client.close()  # should not raise
 
-        mock_sender.close.assert_called_once()
-
-    @patch("fxer.data.storage.questdb_client.Sender")
-    def test_context_manager(
-        self, mock_sender_cls: MagicMock, settings: Settings, sample_bar: NormalizedBar
-    ) -> None:
-        mock_sender = MagicMock()
-        mock_sender_cls.from_conf.return_value = mock_sender
-
+    def test_context_manager(self, settings: Settings) -> None:
+        """QuestDBClient supports the context manager protocol."""
         with QuestDBClient(settings) as client:
-            client.insert_bar(sample_bar)
-
-        mock_sender.close.assert_called_once()
+            assert isinstance(client, QuestDBClient)
 
 
 # ---------------------------------------------------------------------------

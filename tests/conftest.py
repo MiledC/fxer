@@ -176,6 +176,12 @@ def sample_feature_vector() -> FeatureVector:
         day_of_week=1,
         is_month_turn=True,
         warmup_complete=True,
+        # Price-derived features
+        return_1bar=0.0012,
+        return_5bar=0.0058,
+        return_12bar=0.0142,
+        rolling_volatility_20=0.0085,
+        momentum_48=0.0325,
     )
 
 

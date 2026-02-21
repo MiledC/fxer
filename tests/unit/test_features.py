@@ -199,6 +199,7 @@ class TestFeatureEngine:
     def test_get_warmup_bars(self):
         engine = FeatureEngine()
         assert engine.get_warmup_bars() == MAX_WARMUP_BARS
+        assert MAX_WARMUP_BARS == 49  # Explicit check for the new value
 
     def test_not_warmed_up_initially(self):
         engine = FeatureEngine()
@@ -222,6 +223,23 @@ class TestFeatureEngine:
         assert engine.warmup_complete is True
         assert fv.warmup_complete is True
 
+    def test_warmup_requires_49_bars(self):
+        """Verify warmup is not complete until 49 bars (MAX_WARMUP_BARS)."""
+        engine = FeatureEngine()
+
+        # Feed 48 bars - should not be warmed up
+        bars = _make_bars(48)
+        for bar in bars:
+            fv = engine.compute_features(bar)
+        assert engine.warmup_complete is False
+        assert fv.warmup_complete is False
+
+        # Feed one more bar (49 total) - should be warmed up
+        bar = _make_bar(close=2049.0)
+        fv = engine.compute_features(bar)
+        assert engine.warmup_complete is True
+        assert fv.warmup_complete is True
+
     def test_indicators_none_during_warmup(self):
         engine = FeatureEngine()
         bar = _make_bar()
@@ -233,6 +251,18 @@ class TestFeatureEngine:
         assert fv.macd_histogram is None
         assert fv.bb_upper is None
         assert fv.atr_14 is None
+
+    def test_price_features_none_during_warmup(self):
+        """Verify price features are None during early warmup."""
+        engine = FeatureEngine()
+        bar = _make_bar()
+        fv = engine.compute_features(bar)
+        # On first bar, all price features should be None
+        assert fv.return_1bar is None
+        assert fv.return_5bar is None
+        assert fv.return_12bar is None
+        assert fv.rolling_volatility_20 is None
+        assert fv.momentum_48 is None
 
     def test_indicators_populated_after_warmup(self):
         engine = FeatureEngine()
@@ -251,6 +281,21 @@ class TestFeatureEngine:
         assert fv.bb_lower is not None
         assert fv.bb_width is not None
         assert fv.atr_14 is not None
+
+    def test_price_features_populated_after_warmup(self):
+        """Verify price features are computed after warmup period."""
+        engine = FeatureEngine()
+        bars = _make_bars(MAX_WARMUP_BARS + 5)
+        fv = None
+        for bar in bars:
+            fv = engine.compute_features(bar)
+        assert fv is not None
+        # Price features should all be populated after 49 bars
+        assert fv.return_1bar is not None
+        assert fv.return_5bar is not None
+        assert fv.return_12bar is not None
+        assert fv.rolling_volatility_20 is not None
+        assert fv.momentum_48 is not None
 
     def test_temporal_features_present_from_start(self):
         engine = FeatureEngine()
@@ -325,3 +370,34 @@ class TestFeatureEngine:
         assert restored.symbol == fv.symbol
         assert restored.rsi_14 == fv.rsi_14
         assert restored.warmup_complete == fv.warmup_complete
+
+    def test_no_lookahead_bias_in_features(self):
+        """Feature at time T must not use data from T+1 or later."""
+        bars = _make_bars(100)
+
+        # Compute features with only first 51 bars
+        engine1 = FeatureEngine()
+        features_partial = engine1.compute_batch(bars[:51])
+
+        # Compute features with all 100 bars
+        engine2 = FeatureEngine()
+        features_full = engine2.compute_batch(bars)
+
+        # Feature at index 50 should be identical whether computed
+        # with 51 bars or 100 bars
+        fv_partial = features_partial[50]
+        fv_full = features_full[50]
+
+        # Check all technical indicators
+        assert fv_partial.rsi_14 == fv_full.rsi_14
+        assert fv_partial.rsi_7 == fv_full.rsi_7
+        assert fv_partial.macd_line == fv_full.macd_line
+        assert fv_partial.bb_upper == fv_full.bb_upper
+        assert fv_partial.atr_14 == fv_full.atr_14
+
+        # Check price features
+        assert fv_partial.return_1bar == fv_full.return_1bar
+        assert fv_partial.return_5bar == fv_full.return_5bar
+        assert fv_partial.return_12bar == fv_full.return_12bar
+        assert fv_partial.rolling_volatility_20 == fv_full.rolling_volatility_20
+        assert fv_partial.momentum_48 == fv_full.momentum_48
