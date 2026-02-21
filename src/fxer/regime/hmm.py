@@ -31,11 +31,13 @@ class HMMRegimeClassifier:
         covariance_type: str = "diag",
         n_iter: int = 1000,
         random_state: int = 42,
+        n_restarts: int = 10,
     ) -> None:
         self._n_states = n_states
         self._covariance_type = covariance_type
         self._n_iter = n_iter
         self._random_state = random_state
+        self._n_restarts = n_restarts
         self._model: Any | None = None
         self._state_map: dict[int, RegimeState] = {}
 
@@ -47,6 +49,9 @@ class HMMRegimeClassifier:
     def fit(self, daily_df: pd.DataFrame) -> dict[str, Any]:
         """Train the HMM on daily OHLC data.
 
+        Runs multiple random restarts and picks the best model by
+        log-likelihood to avoid poor local optima from EM.
+
         Args:
             daily_df: DataFrame with columns 'close', 'high', 'low'.
                 Must have at least 100 rows.
@@ -54,6 +59,8 @@ class HMMRegimeClassifier:
         Returns:
             Dictionary of training metrics.
         """
+        import warnings
+
         from hmmlearn.hmm import GaussianHMM
 
         features = self._extract_features(daily_df)
@@ -64,31 +71,45 @@ class HMMRegimeClassifier:
                 regime_type="hmm",
             )
 
-        model = GaussianHMM(
-            n_components=self._n_states,
-            covariance_type=self._covariance_type,
-            n_iter=self._n_iter,
-            random_state=self._random_state,
-        )
-        model.fit(features)
-        self._model = model
+        best_model: Any = None
+        best_score = -np.inf
 
-        # Map HMM states to regime states by volatility of each state
+        for seed in range(self._n_restarts):
+            model = GaussianHMM(
+                n_components=self._n_states,
+                covariance_type=self._covariance_type,
+                n_iter=self._n_iter,
+                random_state=self._random_state + seed,
+            )
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                model.fit(features)
+            score = float(model.score(features))
+            logger.debug(
+                "HMM restart %d/%d: score=%.2f, means=%s",
+                seed + 1, self._n_restarts, score,
+                np.round(model.means_, 5).tolist(),
+            )
+            if score > best_score:
+                best_score = score
+                best_model = model
+
+        self._model = best_model
         self._build_state_map(features)
 
-        score = float(model.score(features))
         logger.info(
-            "HMM fitted: n_states=%d, covariance=%s, log_likelihood=%.2f, n_samples=%d",
+            "HMM fitted: n_states=%d, covariance=%s, log_likelihood=%.2f, n_samples=%d, restarts=%d",
             self._n_states,
             self._covariance_type,
-            score,
+            best_score,
             len(features),
+            self._n_restarts,
         )
 
         return {
             "n_states": self._n_states,
             "covariance_type": self._covariance_type,
-            "log_likelihood": score,
+            "log_likelihood": best_score,
             "n_samples": len(features),
         }
 
@@ -166,50 +187,70 @@ class HMMRegimeClassifier:
     def _extract_features(self, daily_df: pd.DataFrame) -> np.ndarray:
         """Extract HMM input features from daily OHLC data.
 
-        Features: daily returns, volatility (rolling std of returns), daily range.
+        Features (2, orthogonal):
+            - realized_vol: 10-day rolling std of returns (volatility level)
+            - autocorrelation: 20-day rolling lag-1 autocorrelation of returns
+              (positive = trending, negative = mean-reverting)
         """
         closes = daily_df["close"].astype(float)
-        highs = daily_df["high"].astype(float)
-        lows = daily_df["low"].astype(float)
-
         returns = closes.pct_change()
-        volatility = returns.rolling(window=20, min_periods=5).std()
-        daily_range = (highs - lows) / closes
+
+        realized_vol = returns.rolling(window=10, min_periods=5).std()
+
+        # Rolling lag-1 autocorrelation via cov(r_t, r_{t-1}) / var(r_t)
+        returns_lag = returns.shift(1)
+        rolling_cov = returns.rolling(window=20, min_periods=10).cov(returns_lag)
+        rolling_var = returns.rolling(window=20, min_periods=10).var()
+        autocorrelation = (rolling_cov / rolling_var).clip(-1, 1).fillna(0.0)
 
         features_df = pd.DataFrame({
-            "returns": returns,
-            "volatility": volatility,
-            "range": daily_range,
+            "realized_vol": realized_vol,
+            "autocorrelation": autocorrelation,
         }).dropna()
 
         return features_df.values
 
     def _build_state_map(self, features: np.ndarray) -> None:
-        """Map HMM states to RegimeState by sorting on volatility characteristic.
+        """Map HMM states to RegimeState using autocorrelation and volatility.
 
-        The state with lowest mean volatility → LOW_VOL_TREND,
-        highest mean volatility → HIGH_VOL_TREND,
-        middle → RANGING.
+        Feature layout: [0]=realized_vol, [1]=autocorrelation.
+
+        Mapping logic (3 states):
+            1. Lowest mean autocorrelation → RANGING (mean-reverting)
+            2. Of remaining: highest mean volatility → HIGH_VOL_TREND
+            3. Remaining → LOW_VOL_TREND
         """
         assert self._model is not None
         means = self._model.means_
 
-        # Volatility is the second feature (index 1)
-        vol_means = means[:, 1]
-        sorted_indices = np.argsort(vol_means)
+        vol_means = means[:, 0]   # realized_vol
+        ac_means = means[:, 1]    # autocorrelation
 
         if self._n_states == 3:
+            # Lowest autocorrelation → RANGING (most mean-reverting)
+            ranging_idx = int(np.argmin(ac_means))
+
+            # Of remaining two: highest volatility → HIGH_VOL_TREND
+            remaining = [i for i in range(self._n_states) if i != ranging_idx]
+            high_vol_idx = remaining[
+                int(np.argmax([vol_means[i] for i in remaining]))
+            ]
+
+            # Last one → LOW_VOL_TREND
+            low_vol_trend_idx = [i for i in remaining if i != high_vol_idx][0]
+
             self._state_map = {
-                int(sorted_indices[0]): RegimeState.LOW_VOL_TREND,
-                int(sorted_indices[1]): RegimeState.RANGING,
-                int(sorted_indices[2]): RegimeState.HIGH_VOL_TREND,
+                ranging_idx: RegimeState.RANGING,
+                high_vol_idx: RegimeState.HIGH_VOL_TREND,
+                low_vol_trend_idx: RegimeState.LOW_VOL_TREND,
             }
         elif self._n_states == 2:
             self._state_map = {
-                int(sorted_indices[0]): RegimeState.LOW_VOL_TREND,
-                int(sorted_indices[1]): RegimeState.HIGH_VOL_TREND,
+                int(np.argmin(vol_means)): RegimeState.LOW_VOL_TREND,
+                int(np.argmax(vol_means)): RegimeState.HIGH_VOL_TREND,
             }
         else:
+            sorted_indices = np.argsort(vol_means)
             self._state_map = {
                 int(sorted_indices[i]): _REGIME_ORDER[i % len(_REGIME_ORDER)]
                 for i in range(self._n_states)

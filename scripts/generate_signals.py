@@ -16,8 +16,11 @@ import logging
 import signal
 import sys
 
+from pathlib import Path
+
 from fxer.config.settings import Settings
 from fxer.messaging.bus import EventBus
+from fxer.regime.classifier import RegimeClassifier
 from fxer.signals.generator import SignalGenerator
 
 logger = logging.getLogger(__name__)
@@ -41,6 +44,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--model-dir",
         help="Override model directory (default: from settings)",
+    )
+    parser.add_argument(
+        "--no-regime",
+        action="store_true",
+        help="Disable regime classification (run signals without gating)",
     )
     parser.add_argument(
         "--log-level",
@@ -69,8 +77,19 @@ async def main(argv: list[str] | None = None) -> int:
     model_path = f"{settings.signal_model_dir}/{symbol.lower()}/{timeframe}"
     print(f"Loading model from {model_path}")
 
+    # Setup regime classifier (unless --no-regime)
+    regime_classifier = None
+    if not args.no_regime:
+        regime_model_path = Path(settings.regime_model_dir) / symbol.lower() / "regime"
+        if regime_model_path.exists():
+            regime_classifier = RegimeClassifier(settings=settings)
+            regime_classifier.load_hmm_model(str(regime_model_path))
+            print(f"Regime classifier loaded from {regime_model_path}")
+        else:
+            print(f"No regime model found at {regime_model_path}, running without regime gating")
+
     bus = EventBus(settings)
-    generator = SignalGenerator(event_bus=bus, settings=settings)
+    generator = SignalGenerator(event_bus=bus, settings=settings, regime_classifier=regime_classifier)
 
     # Setup shutdown event
     shutdown_event = asyncio.Event()

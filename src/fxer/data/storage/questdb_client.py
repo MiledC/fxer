@@ -284,6 +284,70 @@ class QuestDBClient:
             )
         return bars
 
+    def query_daily_bars(
+        self,
+        symbol: str,
+        start: datetime,
+        end: datetime,
+    ) -> list[NormalizedBar]:
+        """Query daily aggregated bars using QuestDB SAMPLE BY.
+
+        Aggregates 5m bars into daily OHLC using QuestDB's native
+        SAMPLE BY 1d operator.
+
+        Args:
+            symbol: Trading symbol (e.g. "XAUUSD").
+            start: Start of time range (inclusive).
+            end: End of time range (inclusive).
+
+        Returns:
+            List of NormalizedBar objects with timeframe=D1, ordered by timestamp.
+        """
+        # QuestDB's SAMPLE BY parser rejects psycopg2's ::timestamptz casts,
+        # so pass timestamps as ISO-format strings instead.
+        start_str = start.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        end_str = end.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        conn = self._get_pg_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT timestamp, first(open) as open, max(high) as high,
+                           min(low) as low, last(close) as close, sum(volume) as volume
+                    FROM bars
+                    WHERE symbol = %s AND timestamp >= %s AND timestamp <= %s
+                    SAMPLE BY 1d
+                    ORDER BY timestamp ASC
+                    """,
+                    (symbol, start_str, end_str),
+                )
+                rows = cur.fetchall()
+        except Exception as exc:
+            raise StorageError(
+                f"Failed to query daily bars: {exc}",
+                operation="query_daily_bars",
+                table="bars",
+            ) from exc
+        finally:
+            conn.close()
+
+        bars: list[NormalizedBar] = []
+        for row in rows:
+            bars.append(
+                NormalizedBar(
+                    symbol=symbol,
+                    timeframe=Timeframe.D1,
+                    timestamp=row[0] if isinstance(row[0], datetime) else datetime.fromisoformat(str(row[0])),
+                    open=Decimal(str(row[1])),
+                    high=Decimal(str(row[2])),
+                    low=Decimal(str(row[3])),
+                    close=Decimal(str(row[4])),
+                    volume=Decimal(str(row[5])) if row[5] is not None else Decimal("0"),
+                    is_complete=True,
+                )
+            )
+        return bars
+
     def query_latest_bar(
         self, symbol: str, timeframe: Timeframe
     ) -> NormalizedBar | None:
