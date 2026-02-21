@@ -38,6 +38,8 @@ dependencies = [
     "torch>=2.0.0",
     "scikit-learn>=1.4.0",
     "lightgbm>=4.0.0",
+    "hmmlearn>=0.3.0",
+    "ruptures>=1.1.0",
 
     # Configuration & Utils
     "pydantic>=2.5.0",

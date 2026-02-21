@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from fxer.features.technical.indicators import ATR, MACD, RSI, BollingerBands
+from fxer.features.technical.indicators import ADX, ATR, MACD, RSI, BollingerBands
 
 
 # ---------------------------------------------------------------------------
@@ -298,3 +298,100 @@ class TestATR:
         atr.reset()
         assert not atr.ready
         assert atr._count == 0
+
+
+# ---------------------------------------------------------------------------
+# ADX Tests
+# ---------------------------------------------------------------------------
+
+class TestADX:
+    def test_adx_not_ready_during_warmup(self):
+        """First 27 bars should not be ready (2x period - 1)."""
+        adx = ADX(period=14)
+        for i in range(27):
+            result = adx.update(SAMPLE_HIGHS[i], SAMPLE_LOWS[i], SAMPLE_CLOSES[i])
+        assert not adx.ready
+        # Should return None until 2*period bars
+        assert result is None
+
+    def test_adx_ready_after_warmup(self):
+        """28+ bars should be ready (2x period)."""
+        adx = ADX(period=14)
+        for i in range(28):
+            result = adx.update(SAMPLE_HIGHS[i], SAMPLE_LOWS[i], SAMPLE_CLOSES[i])
+        assert adx.ready
+        assert result is not None
+
+    def test_adx_bounded_0_100(self):
+        """All ADX values should be in [0, 100] range."""
+        adx = ADX(period=14)
+        for i in range(len(SAMPLE_CLOSES)):
+            result = adx.update(SAMPLE_HIGHS[i], SAMPLE_LOWS[i], SAMPLE_CLOSES[i])
+            if result is not None:
+                assert 0.0 <= result <= 100.0, f"ADX {result} out of [0,100]"
+
+    def test_adx_trending_market(self):
+        """Monotonically rising prices should produce higher ADX."""
+        adx = ADX(period=14)
+        # Create trending market data
+        for i in range(50):
+            high = 2000.0 + i * 2.0 + 1.0
+            low = 2000.0 + i * 2.0 - 1.0
+            close = 2000.0 + i * 2.0
+            result = adx.update(high, low, close)
+
+        assert result is not None
+        # Strong trend should have ADX > 25
+        assert result > 25.0
+
+    def test_adx_ranging_market(self):
+        """Alternating prices should produce lower ADX."""
+        adx = ADX(period=14)
+        # Create ranging market data (oscillating)
+        for i in range(50):
+            if i % 2 == 0:
+                high = 2002.0
+                low = 1998.0
+                close = 2000.0
+            else:
+                high = 2002.0
+                low = 1998.0
+                close = 2001.0
+            result = adx.update(high, low, close)
+
+        assert result is not None
+        # Ranging market should have ADX < 25
+        assert result < 25.0
+
+    def test_adx_compute_batch(self):
+        """Batch mode should work correctly."""
+        adx = ADX(period=14)
+        highs = np.array(SAMPLE_HIGHS, dtype=np.float64)
+        lows = np.array(SAMPLE_LOWS, dtype=np.float64)
+        closes = np.array(SAMPLE_CLOSES, dtype=np.float64)
+
+        result = adx.compute_batch(highs, lows, closes)
+
+        assert len(result) == len(SAMPLE_CLOSES)
+        # First 27 bars should be nan (2*period - 1)
+        assert all(np.isnan(result[:27]))
+        # Bar 28 should have a value
+        assert not np.isnan(result[27])
+        # All subsequent bars should have values
+        assert all(not np.isnan(v) for v in result[28:])
+
+    def test_adx_reset(self):
+        """Reset should clear all state."""
+        adx = ADX(period=14)
+        for i in range(len(SAMPLE_CLOSES)):
+            adx.update(SAMPLE_HIGHS[i], SAMPLE_LOWS[i], SAMPLE_CLOSES[i])
+        assert adx.ready
+
+        adx.reset()
+
+        assert not adx.ready
+        assert adx._count == 0
+        assert adx._prev_high is None
+        assert adx._prev_low is None
+        assert adx._prev_close is None
+        assert len(adx._dx_values) == 0
