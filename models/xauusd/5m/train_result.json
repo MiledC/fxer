@@ -7,92 +7,92 @@
     {
       "fold_index": 0,
       "metrics": {
-        "sharpe_ratio": -20.765740680374655,
-        "sortino_ratio": -25.181630781300466,
-        "profit_factor": 0.6352069000367867,
-        "win_rate": 0.4306962025316456,
-        "max_drawdown": 1.1018627349507422,
-        "trade_count": 9480,
-        "total_return": -1.0955999884730758,
-        "mean_return": -0.00011556961903724428,
-        "std_return": 0.0007802680555446165,
-        "accuracy": 0.5373417721518987
+        "sharpe_ratio": -1.5740901150597915,
+        "sortino_ratio": -2.1892317446902436,
+        "profit_factor": 0.9664011000436143,
+        "win_rate": 0.4867032503165893,
+        "max_drawdown": 0.2087867850297186,
+        "trade_count": 9476,
+        "total_return": -0.08508715642368614,
+        "mean_return": -8.979227144753708e-06,
+        "std_return": 0.0007997549522310201,
+        "accuracy": 0.46950189953566906
       },
-      "train_size": 9480,
-      "test_size": 9480
+      "train_size": 9476,
+      "test_size": 9476
     },
     {
       "fold_index": 1,
       "metrics": {
-        "sharpe_ratio": -18.688136438789037,
-        "sortino_ratio": -22.988631067028482,
-        "profit_factor": 0.6791485135542639,
-        "win_rate": 0.44694092827004217,
-        "max_drawdown": 0.8660742516869229,
-        "trade_count": 9480,
-        "total_return": -0.8635733666859924,
-        "mean_return": -9.109423699219329e-05,
-        "std_return": 0.0006833960717930294,
-        "accuracy": 0.5112869198312237
+        "sharpe_ratio": 0.38082284879853473,
+        "sortino_ratio": 0.5212946473502226,
+        "profit_factor": 1.076916306072341,
+        "win_rate": 0.5029548332629802,
+        "max_drawdown": 0.46156038408941114,
+        "trade_count": 9476,
+        "total_return": 0.2092347494120449,
+        "mean_return": 2.20804927619296e-05,
+        "std_return": 0.008128929094278979,
+        "accuracy": 0.5096032081046855
       },
-      "train_size": 18960,
-      "test_size": 9480
+      "train_size": 18952,
+      "test_size": 9476
     },
     {
       "fold_index": 2,
       "metrics": {
-        "sharpe_ratio": -1.7194437619244458,
-        "sortino_ratio": -2.19087952604154,
-        "profit_factor": 0.9643583355057023,
-        "win_rate": 0.4969409282700422,
-        "max_drawdown": 0.08734442706466883,
-        "trade_count": 9480,
-        "total_return": -0.053350596738544254,
-        "mean_return": -5.627700077905512e-06,
-        "std_return": 0.0004588709241810793,
-        "accuracy": 0.5054852320675105
+        "sharpe_ratio": 3.263462091773828,
+        "sortino_ratio": 4.2895164055665465,
+        "profit_factor": 1.0714205901997271,
+        "win_rate": 0.5030603630223723,
+        "max_drawdown": 0.02854485533420803,
+        "trade_count": 9476,
+        "total_return": 0.10366727143669652,
+        "mean_return": 1.0939982211555141e-05,
+        "std_return": 0.000469986750972316,
+        "accuracy": 0.5358801181933305
       },
-      "train_size": 28440,
-      "test_size": 9480
+      "train_size": 28428,
+      "test_size": 9476
     },
     {
       "fold_index": 3,
       "metrics": {
-        "sharpe_ratio": -12.428297575064423,
-        "sortino_ratio": -15.174068439648465,
-        "profit_factor": 0.7597254003867717,
-        "win_rate": 0.45369198312236286,
-        "max_drawdown": 0.7058727977971987,
-        "trade_count": 9480,
-        "total_return": -0.7037997875510074,
-        "mean_return": -7.424048391888263e-05,
-        "std_return": 0.0008374843933292363,
-        "accuracy": 0.4438818565400844
+        "sharpe_ratio": 0.34011080531114624,
+        "sortino_ratio": 0.4379907847603887,
+        "profit_factor": 1.0075875722764,
+        "win_rate": 0.4954622203461376,
+        "max_drawdown": 0.09135231345837469,
+        "trade_count": 9476,
+        "total_return": 0.01985414663638696,
+        "mean_return": 2.095203317474352e-06,
+        "std_return": 0.0008636808993858454,
+        "accuracy": 0.49598986914309834
       },
-      "train_size": 37920,
-      "test_size": 9480
+      "train_size": 37904,
+      "test_size": 9476
     },
     {
       "fold_index": 4,
       "metrics": {
-        "sharpe_ratio": -10.427349112733564,
-        "sortino_ratio": -13.736715606012373,
-        "profit_factor": 0.8069986613113899,
-        "win_rate": 0.46392405063291137,
-        "max_drawdown": 0.5365330893784854,
-        "trade_count": 9480,
-        "total_return": -0.5340576562552117,
-        "mean_return": -5.633519580751179e-05,
-        "std_return": 0.0007574491206168115,
-        "accuracy": 0.49356540084388184
+        "sharpe_ratio": -1.067095852991268,
+        "sortino_ratio": -1.4732354033170976,
+        "profit_factor": 0.9782830102529999,
+        "win_rate": 0.4929220367631523,
+        "max_drawdown": 0.11005198967172569,
+        "trade_count": 9466,
+        "total_return": -0.05570506493171645,
+        "mean_return": -5.884752264073152e-06,
+        "std_return": 0.0007731652462431057,
+        "accuracy": 0.5075005282062117
       },
-      "train_size": 47400,
-      "test_size": 9480
+      "train_size": 47380,
+      "test_size": 9466
     }
   ],
   "final_metrics": null,
   "model_path": "models/xauusd/5m",
-  "mean_sharpe": -12.805793513777227,
-  "mean_win_rate": 0.4584388185654008,
-  "worst_drawdown": 1.1018627349507422
+  "mean_sharpe": 0.26864195556648995,
+  "mean_win_rate": 0.4962205407422463,
+  "worst_drawdown": 0.46156038408941114
 }

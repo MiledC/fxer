@@ -146,7 +146,7 @@ class Trainer:
 
         # --- Step 2: Walk-forward validation ---
         logger.info("Running %d-fold walk-forward validation", n_folds)
-        splitter = WalkForwardSplitter(n_splits=n_folds)
+        splitter = WalkForwardSplitter(n_splits=n_folds, purge_gap=self._settings.signal_horizon_bars)
         splits = splitter.split(len(y))
 
         for fold_idx, (train_idx, test_idx) in enumerate(splits):
@@ -253,7 +253,7 @@ class Trainer:
                 )
                 df = df.set_index("timestamp")
                 df["close"] = df["close"].astype(float)
-                df["return"] = df["close"].pct_change().fillna(0.0)
+                df["return"] = df["close"].pct_change().shift(-1).fillna(0.0)
 
                 # Align with X index
                 if hasattr(X, "index"):

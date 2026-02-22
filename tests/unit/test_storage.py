@@ -218,8 +218,8 @@ class TestQuestDBClient:
             client = QuestDBClient(settings)
             client.init_tables()
 
-        # 2 DDL + 4 cross-asset migrations + 5 price-feature migrations = 11
-        assert mock_cursor.execute.call_count == 11
+        # 2 DDL + 4 cross-asset migrations + 1 bb_percent_b migration + 5 price-feature migrations = 12
+        assert mock_cursor.execute.call_count == 12
 
     def test_close_is_noop(self, settings: Settings) -> None:
         """close() is a no-op since Sender uses per-operation context managers."""

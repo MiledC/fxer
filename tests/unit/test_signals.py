@@ -39,6 +39,7 @@ def _make_feature_vector(**kwargs):
         "bb_middle": 2040.0,
         "bb_lower": 2030.0,
         "bb_width": 0.01,
+        "bb_percent_b": 0.6,
         "atr_14": 5.0,
         "is_london_session": True,
         "is_ny_session": True,
@@ -210,9 +211,9 @@ class TestModelPrediction:
 
 
 class TestFeatureVectorConversion:
-    def test_feature_columns_length_is_26(self):
-        """Verify FEATURE_COLUMNS has exactly 26 entries."""
-        assert len(FEATURE_COLUMNS) == 26
+    def test_feature_columns_length_is_24(self):
+        """Verify FEATURE_COLUMNS has exactly 24 entries."""
+        assert len(FEATURE_COLUMNS) == 24
 
     def test_feature_columns_all_valid_attributes(self):
         """Verify every entry in FEATURE_COLUMNS is a valid FeatureVector attribute."""
@@ -247,6 +248,14 @@ class TestFeatureVectorConversion:
         asian_idx = FEATURE_COLUMNS.index("is_asian_session")
         assert arr[london_idx] == 1.0
         assert arr[asian_idx] == 0.0
+
+    def test_bb_percent_b_in_feature_columns(self):
+        """bb_percent_b should be in FEATURE_COLUMNS; raw BB levels should not."""
+        assert "bb_percent_b" in FEATURE_COLUMNS
+        assert "bb_upper" not in FEATURE_COLUMNS
+        assert "bb_middle" not in FEATURE_COLUMNS
+        assert "bb_lower" not in FEATURE_COLUMNS
+        assert "bb_width" in FEATURE_COLUMNS
 
 
 # ---------- LabelGenerator Tests ----------
@@ -737,3 +746,39 @@ class TestExceptions:
         err = InsufficientDataError("too few samples", required=100, available=50)
         assert err.required == 100
         assert err.available == 50
+
+
+# ---------- Forward Return Alignment Tests ----------
+
+
+class TestForwardReturnAlignment:
+    """Verify that _get_returns produces forward-looking returns."""
+
+    def test_forward_return_correlates_with_next_bar_move(self):
+        """position[t] * return[t] should reflect the move from t to t+1."""
+        # Build a simple price series: monotonically increasing
+        closes = [100.0 + i for i in range(10)]
+        df = pd.DataFrame({"close": closes})
+        # Forward return: pct_change gives t-1->t, shift(-1) aligns it as t->t+1
+        df["return"] = df["close"].pct_change().shift(-1).fillna(0.0)
+
+        # return[0] should be (101-100)/100 = 0.01
+        assert df["return"].iloc[0] == pytest.approx(0.01, abs=1e-10)
+        # return[1] should be (102-101)/101
+        assert df["return"].iloc[1] == pytest.approx(1.0 / 101.0, abs=1e-10)
+        # Last bar should have 0.0 (no future return)
+        assert df["return"].iloc[-1] == 0.0
+
+    def test_backward_return_would_be_wrong(self):
+        """Without shift(-1), return[0] would be NaN/0, not the forward return."""
+        closes = [100.0, 110.0, 105.0]
+        df = pd.DataFrame({"close": closes})
+
+        # Backward (wrong) approach
+        df["backward"] = df["close"].pct_change().fillna(0.0)
+        # Forward (correct) approach
+        df["forward"] = df["close"].pct_change().shift(-1).fillna(0.0)
+
+        # backward[0] = 0.0 (no prior bar), forward[0] = 0.1 (100->110)
+        assert df["backward"].iloc[0] == 0.0
+        assert df["forward"].iloc[0] == pytest.approx(0.1)

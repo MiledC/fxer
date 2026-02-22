@@ -216,13 +216,13 @@ class BollingerBands:
 
     def update(
         self, close: float
-    ) -> tuple[float | None, float | None, float | None, float | None]:
-        """Feed one close. Returns (upper, middle, lower, width) or all None."""
+    ) -> tuple[float | None, float | None, float | None, float | None, float | None]:
+        """Feed one close. Returns (upper, middle, lower, width, percent_b) or all None."""
         self._prices.append(close)
         self._count += 1
 
         if self._count < self.period:
-            return None, None, None, None
+            return None, None, None, None, None
 
         window = self._prices[-self.period :]
         middle = float(np.mean(window))
@@ -231,8 +231,10 @@ class BollingerBands:
         upper = middle + self.std_dev * std
         lower = middle - self.std_dev * std
         width = (upper - lower) / middle if middle != 0 else 0.0
+        band_range = upper - lower
+        percent_b = (close - lower) / band_range if band_range != 0 else 0.5
 
-        return upper, middle, lower, width
+        return upper, middle, lower, width, percent_b
 
     def compute_batch(
         self, closes: NDArray[np.floating]
@@ -241,21 +243,24 @@ class BollingerBands:
         NDArray[np.floating],
         NDArray[np.floating],
         NDArray[np.floating],
+        NDArray[np.floating],
     ]:
-        """Compute BB for array. Returns (upper, middle, lower, width) with nan."""
+        """Compute BB for array. Returns (upper, middle, lower, width, percent_b) with nan."""
         n = len(closes)
         uppers = np.full(n, np.nan)
         middles = np.full(n, np.nan)
         lowers = np.full(n, np.nan)
         widths = np.full(n, np.nan)
+        percent_bs = np.full(n, np.nan)
         for i, c in enumerate(closes):
-            u, m, l, w = self.update(float(c))
+            u, m, l, w, pb = self.update(float(c))
             if u is not None:
                 uppers[i] = u
                 middles[i] = m  # type: ignore[assignment]
                 lowers[i] = l  # type: ignore[assignment]
                 widths[i] = w  # type: ignore[assignment]
-        return uppers, middles, lowers, widths
+                percent_bs[i] = pb  # type: ignore[assignment]
+        return uppers, middles, lowers, widths, percent_bs
 
     def reset(self) -> None:
         self._prices.clear()

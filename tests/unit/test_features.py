@@ -280,6 +280,7 @@ class TestFeatureEngine:
         assert fv.bb_middle is not None
         assert fv.bb_lower is not None
         assert fv.bb_width is not None
+        assert fv.bb_percent_b is not None
         assert fv.atr_14 is not None
 
     def test_price_features_populated_after_warmup(self):
@@ -351,6 +352,7 @@ class TestFeatureEngine:
             fv = engine.compute_features(bar)
             if fv.bb_upper is not None:
                 assert fv.bb_upper >= fv.bb_middle >= fv.bb_lower
+                assert fv.bb_percent_b is not None
 
     def test_atr_positive(self):
         engine = FeatureEngine()

@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS features (
     bb_middle DOUBLE,
     bb_lower DOUBLE,
     bb_width DOUBLE,
+    bb_percent_b DOUBLE,
     atr_14 DOUBLE,
     is_london_session BOOLEAN,
     is_ny_session BOOLEAN,
@@ -120,6 +121,13 @@ class QuestDBClient:
                 cur.execute(FEATURES_TABLE_DDL)
                 # Migrate: add cross-asset columns if missing
                 for col in ("dxy_return_1h", "dxy_rsi_14", "vix_level", "vix_change"):
+                    try:
+                        cur.execute(f"ALTER TABLE features ADD COLUMN {col} DOUBLE")
+                        logger.info("Added column features.%s", col)
+                    except Exception:
+                        pass  # column already exists
+                # Migrate: add bb_percent_b if missing
+                for col in ("bb_percent_b",):
                     try:
                         cur.execute(f"ALTER TABLE features ADD COLUMN {col} DOUBLE")
                         logger.info("Added column features.%s", col)
@@ -212,7 +220,8 @@ class QuestDBClient:
                 # Only include non-None float columns
                 for field_name in (
                     "rsi_14", "rsi_7", "macd_line", "macd_signal", "macd_histogram",
-                    "bb_upper", "bb_middle", "bb_lower", "bb_width", "atr_14",
+                    "bb_upper", "bb_middle", "bb_lower", "bb_width", "bb_percent_b",
+                    "atr_14",
                     "dxy_return_1h", "dxy_rsi_14", "vix_level", "vix_change",
                     "return_1bar", "return_5bar", "return_12bar",
                     "rolling_volatility_20", "momentum_48",
@@ -256,6 +265,10 @@ class QuestDBClient:
         Returns:
             List of NormalizedBar objects ordered by timestamp.
         """
+        # QuestDB rejects psycopg2's ::timestamptz casts,
+        # so pass timestamps as ISO-format strings.
+        start_str = start.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        end_str = end.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
         conn = self._get_pg_connection()
         try:
             with conn.cursor() as cur:
@@ -270,7 +283,7 @@ class QuestDBClient:
                       AND timestamp <= %s
                     ORDER BY timestamp ASC
                     """,
-                    (symbol, timeframe.value, start, end),
+                    (symbol, timeframe.value, start_str, end_str),
                 )
                 rows = cur.fetchall()
         except Exception as exc:

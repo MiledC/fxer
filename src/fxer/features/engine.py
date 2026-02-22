@@ -68,7 +68,7 @@ class FeatureEngine:
         rsi_14 = self._rsi_14.update(close)
         rsi_7 = self._rsi_7.update(close)
         macd_line, macd_signal, macd_histogram = self._macd.update(close)
-        bb_upper, bb_middle, bb_lower, bb_width = self._bb.update(close)
+        bb_upper, bb_middle, bb_lower, bb_width, bb_percent_b = self._bb.update(close)
         atr_14 = self._atr.update(high, low, close)
 
         # Price-derived features
@@ -103,6 +103,7 @@ class FeatureEngine:
             bb_middle=bb_middle,
             bb_lower=bb_lower,
             bb_width=bb_width,
+            bb_percent_b=bb_percent_b,
             atr_14=atr_14,
             return_1bar=return_1bar,
             return_5bar=return_5bar,

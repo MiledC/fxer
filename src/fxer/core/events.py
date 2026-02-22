@@ -114,6 +114,7 @@ class FeatureVector:
     bb_middle: float | None = None
     bb_lower: float | None = None
     bb_width: float | None = None  # (upper - lower) / middle
+    bb_percent_b: float | None = None  # (close - lower) / (upper - lower)
     atr_14: float | None = None
 
     # Session flags
@@ -158,6 +159,7 @@ class FeatureVector:
             "bb_middle": self.bb_middle,
             "bb_lower": self.bb_lower,
             "bb_width": self.bb_width,
+            "bb_percent_b": self.bb_percent_b,
             "atr_14": self.atr_14,
             "is_london_session": self.is_london_session,
             "is_ny_session": self.is_ny_session,
@@ -194,6 +196,7 @@ class FeatureVector:
             bb_middle=data.get("bb_middle"),
             bb_lower=data.get("bb_lower"),
             bb_width=data.get("bb_width"),
+            bb_percent_b=data.get("bb_percent_b"),
             atr_14=data.get("atr_14"),
             is_london_session=data.get("is_london_session", False),
             is_ny_session=data.get("is_ny_session", False),
