@@ -177,3 +177,26 @@ class RegimeClassificationError(FxerError):
         super().__init__(message, details)
         self.regime_type = regime_type
         self.symbol = symbol
+
+
+class BacktestError(FxerError):
+    """Base exception for backtesting errors."""
+
+
+class NoDataError(BacktestError):
+    """Raised when no bars are found for the specified range."""
+
+
+class ModelLoadError(BacktestError):
+    """Raised when a required model cannot be loaded."""
+
+    def __init__(
+        self,
+        message: str,
+        model_name: str | None = None,
+    ):
+        details = {}
+        if model_name:
+            details["model_name"] = model_name
+        super().__init__(message, details)
+        self.model_name = model_name
