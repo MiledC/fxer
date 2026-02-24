@@ -176,35 +176,36 @@ class TestBollingerBands:
     def test_not_ready_during_warmup(self):
         bb = BollingerBands()
         for price in SAMPLE_CLOSES[:19]:
-            u, m, l, w = bb.update(price)
+            u, m, l, w, pb = bb.update(price)
         assert not bb.ready
         assert u is None
 
     def test_ready_after_warmup(self):
         bb = BollingerBands()
         for price in SAMPLE_CLOSES[:20]:
-            u, m, l, w = bb.update(price)
+            u, m, l, w, pb = bb.update(price)
         assert bb.ready
         assert u is not None
+        assert pb is not None
 
     def test_upper_above_middle_above_lower(self):
         bb = BollingerBands()
         for price in SAMPLE_CLOSES:
-            u, m, l, w = bb.update(price)
+            u, m, l, w, pb = bb.update(price)
         assert u is not None and m is not None and l is not None
         assert u > m > l
 
     def test_middle_is_sma(self):
         bb = BollingerBands(period=20)
         for price in SAMPLE_CLOSES[:20]:
-            u, m, l, w = bb.update(price)
+            u, m, l, w, pb = bb.update(price)
         expected_sma = np.mean(SAMPLE_CLOSES[:20])
         assert abs(m - expected_sma) < 1e-10
 
     def test_width_calculation(self):
         bb = BollingerBands()
         for price in SAMPLE_CLOSES:
-            u, m, l, w = bb.update(price)
+            u, m, l, w, pb = bb.update(price)
         assert u is not None and m is not None and l is not None and w is not None
         expected_width = (u - l) / m
         assert abs(w - expected_width) < 1e-10
@@ -213,17 +214,31 @@ class TestBollingerBands:
         """Constant prices -> std=0 -> upper=middle=lower, width=0."""
         bb = BollingerBands(period=5)
         for _ in range(10):
-            u, m, l, w = bb.update(100.0)
+            u, m, l, w, pb = bb.update(100.0)
         assert u == m == l == 100.0
         assert w == 0.0
+        assert pb == 0.5  # zero-division guard returns 0.5
+
+    def test_percent_b_values(self):
+        """percent_b should be ~0 at lower, ~0.5 at middle, ~1 at upper."""
+        bb = BollingerBands(period=5)
+        # Feed varied prices to build bands
+        prices = [100.0, 102.0, 98.0, 101.0, 99.0, 100.5]
+        for price in prices:
+            u, m, l, w, pb = bb.update(price)
+        # After warmup, percent_b should be (close - lower) / (upper - lower)
+        assert pb is not None
+        expected_pb = (prices[-1] - l) / (u - l)
+        assert abs(pb - expected_pb) < 1e-10
 
     def test_compute_batch(self):
         bb = BollingerBands()
         closes = np.array(SAMPLE_CLOSES, dtype=np.float64)
-        uppers, middles, lowers, widths = bb.compute_batch(closes)
+        uppers, middles, lowers, widths, percent_bs = bb.compute_batch(closes)
         assert len(uppers) == len(SAMPLE_CLOSES)
         assert all(np.isnan(uppers[:19]))
         assert not np.isnan(uppers[19])
+        assert not np.isnan(percent_bs[19])
 
     def test_reset(self):
         bb = BollingerBands()

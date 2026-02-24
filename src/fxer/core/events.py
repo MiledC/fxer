@@ -114,6 +114,7 @@ class FeatureVector:
     bb_middle: float | None = None
     bb_lower: float | None = None
     bb_width: float | None = None  # (upper - lower) / middle
+    bb_percent_b: float | None = None  # (close - lower) / (upper - lower)
     atr_14: float | None = None
 
     # Session flags
@@ -136,6 +137,13 @@ class FeatureVector:
     vix_level: float | None = None
     vix_change: float | None = None
 
+    # Price-derived features
+    return_1bar: float | None = None
+    return_5bar: float | None = None
+    return_12bar: float | None = None
+    rolling_volatility_20: float | None = None
+    momentum_48: float | None = None
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
@@ -151,6 +159,7 @@ class FeatureVector:
             "bb_middle": self.bb_middle,
             "bb_lower": self.bb_lower,
             "bb_width": self.bb_width,
+            "bb_percent_b": self.bb_percent_b,
             "atr_14": self.atr_14,
             "is_london_session": self.is_london_session,
             "is_ny_session": self.is_ny_session,
@@ -164,6 +173,11 @@ class FeatureVector:
             "dxy_rsi_14": self.dxy_rsi_14,
             "vix_level": self.vix_level,
             "vix_change": self.vix_change,
+            "return_1bar": self.return_1bar,
+            "return_5bar": self.return_5bar,
+            "return_12bar": self.return_12bar,
+            "rolling_volatility_20": self.rolling_volatility_20,
+            "momentum_48": self.momentum_48,
         }
 
     @classmethod
@@ -182,6 +196,7 @@ class FeatureVector:
             bb_middle=data.get("bb_middle"),
             bb_lower=data.get("bb_lower"),
             bb_width=data.get("bb_width"),
+            bb_percent_b=data.get("bb_percent_b"),
             atr_14=data.get("atr_14"),
             is_london_session=data.get("is_london_session", False),
             is_ny_session=data.get("is_ny_session", False),
@@ -195,6 +210,11 @@ class FeatureVector:
             dxy_rsi_14=data.get("dxy_rsi_14"),
             vix_level=data.get("vix_level"),
             vix_change=data.get("vix_change"),
+            return_1bar=data.get("return_1bar"),
+            return_5bar=data.get("return_5bar"),
+            return_12bar=data.get("return_12bar"),
+            rolling_volatility_20=data.get("rolling_volatility_20"),
+            momentum_48=data.get("momentum_48"),
         )
 
 
