@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from fxer.backtesting.types import BacktestTrade, RegimeMetrics, TradeMetrics
+from fxer.backtesting.types import BacktestTrade, DirectionMetrics, RegimeMetrics, TradeMetrics
+from fxer.signals.types import Direction
 
 
 def compute_trade_metrics(
@@ -216,6 +217,59 @@ def compute_regime_breakdown(
         )
 
     return breakdown
+
+
+def compute_direction_metrics(
+    trades: list[BacktestTrade],
+    direction: Direction,
+) -> DirectionMetrics | None:
+    """Compute performance metrics for a specific trade direction.
+
+    Args:
+        trades: List of completed BacktestTrade objects.
+        direction: LONG or SHORT direction to filter.
+
+    Returns:
+        DirectionMetrics for the specified direction, or None if no trades.
+    """
+    # Filter trades by direction
+    dir_trades = [t for t in trades if t.direction == direction and t.pnl_pct is not None]
+
+    if not dir_trades:
+        return None
+
+    pnl_list = [t.pnl_pct for t in dir_trades]
+    pnl_array = np.array(pnl_list)
+
+    trade_count = len(dir_trades)
+    win_count = int(np.sum(pnl_array > 0))
+    win_rate = float(win_count / trade_count * 100) if trade_count > 0 else 0.0
+
+    # Total return (sum, not compound for simplicity)
+    total_return = float(np.sum(pnl_array))
+
+    # Profit factor
+    wins = pnl_array[pnl_array > 0]
+    losses = pnl_array[pnl_array < 0]
+
+    if len(losses) > 0:
+        total_wins = np.sum(wins) if len(wins) > 0 else 0.0
+        total_losses = np.abs(np.sum(losses))
+        if total_losses > 0:
+            profit_factor = float(total_wins / total_losses)
+            profit_factor = min(profit_factor, 99.99)
+        else:
+            profit_factor = 99.99
+    else:
+        profit_factor = 99.99 if len(wins) > 0 else 0.0
+
+    return DirectionMetrics(
+        trade_count=trade_count,
+        win_count=win_count,
+        win_rate=round(win_rate, 1),
+        profit_factor=round(profit_factor, 2),
+        total_return=round(total_return, 2),
+    )
 
 
 def _calculate_max_drawdown(pnl_array: np.ndarray) -> float:

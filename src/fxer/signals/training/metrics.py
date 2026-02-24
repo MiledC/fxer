@@ -76,19 +76,25 @@ def compute_metrics(
     labels: np.ndarray,
     returns: np.ndarray,
     periods_per_year: float = 252 * 78,  # 5m bars per trading year
+    horizon_bars: int = 1,
 ) -> SignalMetrics:
     """Compute trading metrics from predictions, labels, and returns.
 
     Args:
         predictions: Model predictions (1 = long, 0 = short).
         labels: True labels (1 = long, 0 = short).
-        returns: Per-bar returns corresponding to each prediction.
+        returns: Per-period returns corresponding to each prediction.
         periods_per_year: Number of bars per trading year for annualization.
             Default assumes 5-minute bars (252 days * 78 bars/day).
+        horizon_bars: Number of bars per holding period. When > 1, each
+            return spans multiple bars so ``periods_per_year`` is adjusted
+            to ``periods_per_year / horizon_bars`` for correct annualization.
 
     Returns:
         SignalMetrics with all computed metrics.
     """
+    if horizon_bars > 1:
+        periods_per_year = periods_per_year / horizon_bars
     if len(predictions) == 0 or len(labels) == 0:
         return SignalMetrics(
             sharpe_ratio=0.0,

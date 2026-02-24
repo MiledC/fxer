@@ -54,8 +54,8 @@ class Settings(BaseSettings):
     signal_neutral_threshold: float = 0.55
     signal_high_confidence_threshold: float = 0.70
     signal_lookback_window: int = 48  # Bars for LSTM sequence input
-    signal_horizon_bars: int = 12  # Look-ahead bars for labelling (12 × 5m = 1h)
-    signal_threshold_atr_mult: float = 0.5  # Min move = 0.5 × ATR for label
+    signal_horizon_bars: int = 24  # Look-ahead bars for labelling (24 × 5m = 2h)
+    signal_threshold_atr_mult: float = 0.0  # 0 = sign-of-return (no dead zone)
 
     # Regime classification settings
     regime_hmm_states: int = 3

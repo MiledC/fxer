@@ -90,6 +90,25 @@ class TradeMetrics:
 
 
 @dataclass(frozen=True, slots=True)
+class DirectionMetrics:
+    """Performance metrics for a specific trade direction (LONG/SHORT).
+
+    Attributes:
+        trade_count: Number of trades in this direction.
+        win_count: Number of winning trades.
+        win_rate: Percentage of profitable trades.
+        profit_factor: Ratio of gross wins to gross losses.
+        total_return: Sum of returns for this direction.
+    """
+
+    trade_count: int
+    win_count: int
+    win_rate: float
+    profit_factor: float
+    total_return: float
+
+
+@dataclass(frozen=True, slots=True)
 class BacktestResult:
     """Complete backtest results and metadata.
 
@@ -110,6 +129,8 @@ class BacktestResult:
         max_drawdown: Maximum drawdown.
         meets_minimum: Whether results meet minimum criteria.
         regime_breakdown: Performance by regime state.
+        long_metrics: Performance metrics for LONG trades.
+        short_metrics: Performance metrics for SHORT trades.
     """
 
     symbol: str
@@ -128,3 +149,5 @@ class BacktestResult:
     max_drawdown: float
     meets_minimum: bool
     regime_breakdown: dict[str, RegimeMetrics]
+    long_metrics: DirectionMetrics | None = None
+    short_metrics: DirectionMetrics | None = None

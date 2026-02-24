@@ -5,7 +5,11 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from fxer.backtesting.metrics import compute_regime_breakdown, compute_trade_metrics
+from fxer.backtesting.metrics import (
+    compute_direction_metrics,
+    compute_regime_breakdown,
+    compute_trade_metrics,
+)
 from fxer.backtesting.tracker import TradeTracker
 from fxer.backtesting.types import BacktestResult
 from fxer.config.settings import Settings, settings as default_settings
@@ -130,7 +134,7 @@ class BacktestEngine:
                 self._use_regime = False
 
         # Initialize trade tracker
-        # Use 12 bars (1 hour) as default horizon for 5m bars
+        # Use 12 bars (1 hour) for 5m bars
         predicted_horizon = 12 if timeframe == "5m" else 6
         tracker = TradeTracker(spread=self._spread, predicted_horizon=predicted_horizon)
 
@@ -180,7 +184,7 @@ class BacktestEngine:
                 feature_array,
                 symbol,
                 bar.timestamp,
-                HoldingPeriod.HOUR_1,  # Default to 1 hour horizon
+                HoldingPeriod.from_bars(predicted_horizon),
             )
             signals_generated += 1
 
@@ -231,6 +235,10 @@ class BacktestEngine:
         closed_trades = tracker.get_closed_trades()
         metrics = compute_trade_metrics(closed_trades)
 
+        # Compute direction breakdown (LONG vs SHORT)
+        long_metrics = compute_direction_metrics(closed_trades, Direction.LONG)
+        short_metrics = compute_direction_metrics(closed_trades, Direction.SHORT)
+
         # Compute regime breakdown if used
         regime_breakdown = {}
         if self._use_regime:
@@ -263,6 +271,8 @@ class BacktestEngine:
             max_drawdown=metrics.max_drawdown,
             meets_minimum=meets_minimum,
             regime_breakdown=regime_breakdown,
+            long_metrics=long_metrics,
+            short_metrics=short_metrics,
         )
 
         logger.info(

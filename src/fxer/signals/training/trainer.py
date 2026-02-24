@@ -30,6 +30,7 @@ class FoldResult:
     metrics: SignalMetrics
     train_size: int
     test_size: int
+    xgb_only_accuracy: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -37,6 +38,7 @@ class FoldResult:
             "metrics": self.metrics.to_dict(),
             "train_size": self.train_size,
             "test_size": self.test_size,
+            "xgb_only_accuracy": self.xgb_only_accuracy,
         }
 
 
@@ -196,7 +198,12 @@ class Trainer:
         test_idx: np.ndarray,
         fold_idx: int,
     ) -> FoldResult:
-        """Train and evaluate a single walk-forward fold."""
+        """Train and evaluate a single walk-forward fold.
+
+        Evaluates the full meta-learner ensemble on the test set (matching
+        what gets deployed) and also records XGBoost-only accuracy as a
+        baseline comparison.
+        """
         X_arr = X.values if hasattr(X, "values") else X
 
         X_train, y_train = X_arr[train_idx], y[train_idx]
@@ -207,19 +214,57 @@ class Trainer:
         ensemble = StackingEnsemble(settings=self._settings)
         ensemble.fit(X_train, y_train)
 
-        # Generate predictions on test set
-        # Use XGBoost-only predictions for fold metrics (LSTM needs sequences
-        # which may not align perfectly with fold boundaries)
+        # --- XGBoost-only baseline accuracy ---
         xgb_probs = ensemble.xgb_model.predict_batch(X_test)
-        predictions = (xgb_probs[:, 1] > 0.5).astype(int)
+        xgb_predictions = (xgb_probs[:, 1] > 0.5).astype(int)
+        xgb_only_acc = float(np.mean(xgb_predictions == y_test.astype(int)))
 
-        metrics = compute_metrics(predictions, y_test.astype(int), test_returns)
+        # --- Full ensemble evaluation ---
+        # Scale test features, build LSTM sequences, predict through meta-learner
+        lookback = self._settings.signal_lookback_window
+        X_test_scaled = ensemble.scaler.transform(X_test)
+        X_test_seq, y_test_seq = StackingEnsemble._build_sequences(
+            X_test_scaled, y_test, lookback,
+        )
+
+        if len(X_test_seq) > 0:
+            # LSTM predictions on sequences
+            lstm_probs = ensemble.lstm_model.predict_batch(X_test_seq)
+
+            # Align XGBoost predictions: drop the first (lookback-1) to match
+            offset = len(y_test) - len(y_test_seq)
+            xgb_probs_aligned = xgb_probs[offset:]
+            y_test_aligned = y_test[offset:]
+            test_returns_aligned = test_returns[offset:]
+
+            # Meta-features → meta-learner prediction
+            meta_features = np.column_stack([xgb_probs_aligned, lstm_probs])
+            meta_probs = ensemble._meta_learner.predict_proba(meta_features)
+            predictions = (meta_probs[:, 1] > 0.5).astype(int)
+
+            metrics = compute_metrics(
+                predictions, y_test_aligned.astype(int), test_returns_aligned,
+                horizon_bars=self._settings.signal_horizon_bars,
+            )
+        else:
+            # Not enough test data for LSTM sequences — fall back to XGBoost
+            logger.warning(
+                "Fold %d: test set too small for LSTM sequences (%d < %d), "
+                "using XGBoost-only evaluation",
+                fold_idx, len(X_test), lookback,
+            )
+            predictions = xgb_predictions
+            metrics = compute_metrics(
+                predictions, y_test.astype(int), test_returns,
+                horizon_bars=self._settings.signal_horizon_bars,
+            )
 
         return FoldResult(
             fold_index=fold_idx,
             metrics=metrics,
             train_size=len(y_train),
             test_size=len(y_test),
+            xgb_only_accuracy=xgb_only_acc,
         )
 
     def _get_returns(
@@ -230,10 +275,15 @@ class Trainer:
         end: datetime,
         X: Any,
     ) -> np.ndarray:
-        """Query bar close prices and compute per-bar returns.
+        """Query bar close prices and compute N-bar forward returns.
+
+        The horizon matches ``signal_horizon_bars`` so that the return
+        used for metric evaluation corresponds to the same forward window
+        used to generate training labels.
 
         Returns array aligned with X's index.
         """
+        horizon = self._settings.signal_horizon_bars
         try:
             conn = self._builder._db._get_pg_connection()
             try:
@@ -253,7 +303,9 @@ class Trainer:
                 )
                 df = df.set_index("timestamp")
                 df["close"] = df["close"].astype(float)
-                df["return"] = df["close"].pct_change().shift(-1).fillna(0.0)
+                df["return"] = (
+                    (df["close"].shift(-horizon) - df["close"]) / df["close"]
+                ).fillna(0.0)
 
                 # Align with X index
                 if hasattr(X, "index"):

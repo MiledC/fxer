@@ -310,6 +310,74 @@ class TestLabelGenerator:
         # (except last 5 which are NaN due to shift)
         assert labels.isna().sum() == 100
 
+    def test_sign_of_return_no_dead_zone(self):
+        """threshold_atr_mult=0 should produce labels for every bar with future data."""
+        df = pd.DataFrame({
+            "close": np.concatenate([
+                np.linspace(100, 110, 50),   # up
+                np.linspace(110, 95, 50),     # down
+            ]),
+            "high": np.full(100, 120.0),
+            "low": np.full(100, 80.0),
+            "atr_14": np.full(100, 5.0),
+        })
+
+        gen = LabelGenerator(horizon_bars=5, threshold_atr_mult=0.0)
+        labels = gen.generate(df)
+
+        # Only the last `horizon_bars` bars should be NaN (no future data)
+        assert labels.isna().sum() == 5
+        # All other bars have a label
+        assert labels.notna().sum() == 95
+
+    def test_sign_of_return_labels_correct_direction(self):
+        """Sign-of-return should assign LONG when price rises, SHORT otherwise."""
+        df = pd.DataFrame({
+            "close": [100.0, 102.0, 104.0, 103.0, 101.0, 99.0, 97.0, 98.0, 100.0, 102.0],
+            "high": [105.0] * 10,
+            "low": [95.0] * 10,
+        })
+
+        gen = LabelGenerator(horizon_bars=1, threshold_atr_mult=0.0)
+        labels = gen.generate(df)
+
+        # close[1]-close[0] = +2 → LONG
+        assert labels.iloc[0] == 1.0
+        # close[4]-close[3] = -2 → SHORT
+        assert labels.iloc[3] == 0.0
+        # Last bar → NaN (no future)
+        assert np.isnan(labels.iloc[-1])
+
+    def test_sign_of_return_flat_price_is_short(self):
+        """When future price == current price (change=0), label should be SHORT (0)."""
+        df = pd.DataFrame({
+            "close": np.full(20, 100.0),
+            "high": np.full(20, 101.0),
+            "low": np.full(20, 99.0),
+        })
+
+        gen = LabelGenerator(horizon_bars=5, threshold_atr_mult=0.0)
+        labels = gen.generate(df)
+
+        valid = labels.dropna()
+        # price_change == 0 → classified as SHORT (<=0)
+        assert (valid == 0.0).all()
+
+    def test_atr_threshold_still_works(self):
+        """threshold_atr_mult > 0 should behave exactly as before (dead zone present)."""
+        df = pd.DataFrame({
+            "close": np.full(100, 100.0),
+            "high": np.full(100, 101.0),
+            "low": np.full(100, 99.0),
+            "atr_14": np.full(100, 2.0),
+        })
+
+        gen = LabelGenerator(horizon_bars=5, threshold_atr_mult=0.5)
+        labels = gen.generate(df)
+
+        # Flat price with ATR threshold → all dead zone
+        assert labels.isna().sum() == 100
+
     def test_atr_computation_fallback(self):
         """When atr_14 column is missing, it should be computed."""
         rng = np.random.RandomState(42)
@@ -782,3 +850,37 @@ class TestForwardReturnAlignment:
         # backward[0] = 0.0 (no prior bar), forward[0] = 0.1 (100->110)
         assert df["backward"].iloc[0] == 0.0
         assert df["forward"].iloc[0] == pytest.approx(0.1)
+
+    def test_nbar_forward_return_matches_horizon(self):
+        """N-bar forward return should span the full label horizon."""
+        closes = [100.0 + i * 2 for i in range(20)]
+        df = pd.DataFrame({"close": closes})
+        horizon = 5
+
+        # N-bar forward return: (close[t+N] - close[t]) / close[t]
+        df["return"] = (
+            (df["close"].shift(-horizon) - df["close"]) / df["close"]
+        ).fillna(0.0)
+
+        # return[0] = (110 - 100) / 100 = 0.10
+        assert df["return"].iloc[0] == pytest.approx(0.10)
+        # return[1] = (112 - 102) / 102
+        assert df["return"].iloc[1] == pytest.approx(10.0 / 102.0)
+        # Last `horizon` bars should be 0.0 (no full forward window)
+        for i in range(horizon):
+            assert df["return"].iloc[-(i + 1)] == 0.0
+
+    def test_horizon_bars_adjusts_annualization(self):
+        """compute_metrics with horizon_bars > 1 should reduce periods_per_year."""
+        rng = np.random.RandomState(42)
+        n = 200
+        predictions = rng.randint(0, 2, size=n)
+        labels = rng.randint(0, 2, size=n)
+        returns = rng.randn(n) * 0.01
+
+        m1 = compute_metrics(predictions, labels, returns, horizon_bars=1)
+        m12 = compute_metrics(predictions, labels, returns, horizon_bars=12)
+
+        # With the same returns, larger horizon_bars means fewer periods/year
+        # so annualised Sharpe should be smaller in absolute value
+        assert abs(m12.sharpe_ratio) < abs(m1.sharpe_ratio)

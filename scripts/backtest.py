@@ -189,6 +189,28 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  Max Drawdown:    {result.max_drawdown:.1f}%")
     print(f"  Meets Minimum:   {'YES' if result.meets_minimum else 'NO'}")
 
+    # Print direction breakdown
+    print("\n--- Direction Breakdown ---")
+    if result.long_metrics:
+        lm = result.long_metrics
+        print(
+            f"  LONG   {lm.trade_count:4d} trades, "
+            f"{lm.win_count:4d} wins ({lm.win_rate:5.1f}%), "
+            f"PF {lm.profit_factor:5.2f}, Return {lm.total_return:+.2f}%"
+        )
+    else:
+        print("  LONG      0 trades")
+
+    if result.short_metrics:
+        sm = result.short_metrics
+        print(
+            f"  SHORT  {sm.trade_count:4d} trades, "
+            f"{sm.win_count:4d} wins ({sm.win_rate:5.1f}%), "
+            f"PF {sm.profit_factor:5.2f}, Return {sm.total_return:+.2f}%"
+        )
+    else:
+        print("  SHORT     0 trades")
+
     # Print regime breakdown if available
     if result.regime_breakdown:
         print("\n--- Regime Breakdown ---")

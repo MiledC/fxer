@@ -38,29 +38,43 @@ class LabelGenerator:
     def generate(self, bars_df: pd.DataFrame) -> pd.Series:
         """Generate labels from a DataFrame of bar data.
 
+        When ``threshold_atr_mult == 0`` (sign-of-return mode), every bar
+        with a valid forward return gets a label — no dead zone.  This
+        maximises data utilisation and produces a cleaner learning target.
+
+        When ``threshold_atr_mult > 0``, the original ATR-threshold
+        behaviour is preserved for backward compatibility.
+
         Args:
             bars_df: DataFrame with columns 'close' and 'atr_14' (or computable).
                      Must be sorted by timestamp ascending.
 
         Returns:
-            Series of labels: 1 (long), 0 (short), NaN (dead zone).
+            Series of labels: 1 (long), 0 (short), NaN (no future data).
             Same index as bars_df.
         """
         close = bars_df["close"].astype(float)
         future_close = close.shift(-self.horizon_bars)
-
-        # Use ATR if available, otherwise compute from high/low/close
-        if "atr_14" in bars_df.columns:
-            atr = bars_df["atr_14"].astype(float)
-        else:
-            atr = self._compute_atr(bars_df, period=14)
-
-        threshold = atr * self.threshold_atr_mult
         price_change = future_close - close
 
-        labels = pd.Series(np.nan, index=bars_df.index, dtype=float)
-        labels[price_change > threshold] = 1.0  # LONG
-        labels[price_change < -threshold] = 0.0  # SHORT
+        if self.threshold_atr_mult == 0:
+            # Sign-of-return labeling: no dead zone
+            labels = pd.Series(np.nan, index=bars_df.index, dtype=float)
+            valid = future_close.notna()
+            labels[valid & (price_change > 0)] = 1.0   # LONG
+            labels[valid & (price_change <= 0)] = 0.0   # SHORT
+        else:
+            # ATR-threshold labeling (original behaviour)
+            if "atr_14" in bars_df.columns:
+                atr = bars_df["atr_14"].astype(float)
+            else:
+                atr = self._compute_atr(bars_df, period=14)
+
+            threshold = atr * self.threshold_atr_mult
+
+            labels = pd.Series(np.nan, index=bars_df.index, dtype=float)
+            labels[price_change > threshold] = 1.0   # LONG
+            labels[price_change < -threshold] = 0.0   # SHORT
 
         n_long = (labels == 1.0).sum()
         n_short = (labels == 0.0).sum()
