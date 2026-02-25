@@ -195,7 +195,9 @@ class ObservationBuilder:
         for timestamp in valid_timestamps:
             obs_parts = []
 
-            # Process each window
+            # Process each window. Uses for/else: if any window breaks
+            # (insufficient features), the else clause is skipped and
+            # this timestamp is dropped from the observation set.
             for window in self._config.windows:
                 tf = window.timeframe
                 tf_features = self._tf_features.get(tf, {})
@@ -256,11 +258,11 @@ class ObservationBuilder:
 
                 # Verify size matches config
                 if len(observation) != self._config.observation_size:
-                    logger.error(
+                    raise ObservationError(
                         f"Observation size mismatch at {timestamp}: "
-                        f"expected {self._config.observation_size}, got {len(observation)}"
+                        f"expected {self._config.observation_size}, got {len(observation)}",
+                        timestamp=timestamp,
                     )
-                    continue
 
                 self._observations[timestamp] = observation
                 self._timestamps.append(timestamp)
