@@ -1,5 +1,6 @@
 """Custom exceptions for the fxEr trading system."""
 
+from datetime import datetime
 from typing import Any
 
 
@@ -200,3 +201,26 @@ class ModelLoadError(BacktestError):
             details["model_name"] = model_name
         super().__init__(message, details)
         self.model_name = model_name
+
+
+class RLError(FxerError):
+    """Base exception for RL module errors."""
+
+
+class ObservationError(RLError):
+    """Raised when observation building or retrieval fails."""
+
+    def __init__(
+        self,
+        message: str,
+        timestamp: datetime | None = None,
+        timeframe: str | None = None,
+    ):
+        details = {}
+        if timestamp:
+            details["timestamp"] = timestamp.isoformat()
+        if timeframe:
+            details["timeframe"] = timeframe
+        super().__init__(message, details)
+        self.timestamp = timestamp
+        self.timeframe = timeframe

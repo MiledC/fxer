@@ -122,6 +122,16 @@ def make_normalized_bar_series(
     return bars
 
 
+def make_observation_config(
+    symbol: str = "XAUUSD",
+    primary_timeframe: Timeframe = Timeframe.M5,
+    include_regime: bool = True,
+) -> "ObservationConfig":
+    """Create a default ObservationConfig for testing."""
+    from fxer.rl.observations.config import ObservationConfig
+    return ObservationConfig(symbol=symbol, primary_timeframe=primary_timeframe, include_regime=include_regime)
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
