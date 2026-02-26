@@ -234,6 +234,100 @@ For long backtests, consider building in chunks.
 | `get_bar(timestamp)` | `NormalizedBar \| None` | Primary-TF bar at timestamp |
 | `get_regime(timestamp)` | `RegimeDecision \| None` | Regime classification at timestamp |
 | `get_features(timestamp)` | `FeatureVector \| None` | Primary-TF features at timestamp |
+| `reset_normalizer()` | `None` | Reset normalization statistics between episodes |
 | `observation_size` | `int` | Total floats per observation |
 | `timestamps` | `list[datetime]` | All available timestamps (sorted) |
 | `is_built` | `bool` | Whether `build()` has been called |
+
+## Normalization
+
+The observation builder supports three normalization methods to ensure stable RL training:
+
+### Normalization Methods
+
+| Method | Description | Use Case |
+|--------|-------------|----------|
+| `NONE` | No normalization applied | Raw features needed or external normalization |
+| `ONLINE_ZSCORE` | All features (except booleans) normalized with online z-score | Simple, uniform treatment |
+| `FEATURE_SPECIFIC` | Per-feature normalization based on feature characteristics | Production, optimal per-feature handling |
+
+### Feature Classes
+
+In `FEATURE_SPECIFIC` mode, each feature is normalized according to its class:
+
+| Class | Method | Features |
+|-------|--------|----------|
+| `PASSTHROUGH` | No change | `is_london_session`, `is_ny_session`, `is_overlap_session`, `is_asian_session`, `is_month_turn`, `bb_percent_b` |
+| `RESCALE` | Linear [0,1] | `rsi_14`, `rsi_7`, `dxy_rsi_14`, `hour_of_day`, `day_of_week` |
+| `ZSCORE` | Online z-score | `macd_line`, `macd_signal`, `macd_histogram`, `atr_14`, `vix_change`, `dxy_return_1h` |
+| `VOL_ADJUST` | Scale by volatility | `return_1bar`, `return_5bar`, `return_12bar`, `momentum_48` |
+| `LOG_ZSCORE` | Log then z-score | `bb_width`, `rolling_volatility_20`, `vix_level` |
+
+### Session-Aware Normalization
+
+Gold (XAUUSD) exhibits distinct behavior across trading sessions due to regional market dynamics:
+
+- **Asian Session** (22:00-07:00 UTC): Lower volatility, range-bound
+- **London Session** (07:00-12:00 UTC): Volatility pickup, European flows
+- **Overlap Session** (12:00-16:00 UTC): Peak liquidity, US/EU overlap
+- **NY Session** (16:00-22:00 UTC): US economic data, closing flows
+
+When `session_aware=True`, the normalizer maintains separate statistics for each session, capturing these regime-specific distributions.
+
+### VOL_ADJUST Lookahead Prevention
+
+Features in the `VOL_ADJUST` class (returns, momentum) are scaled by the **previous bar's** volatility to prevent lookahead bias:
+
+```
+normalized_return_t = return_t / volatility_{t-1}
+```
+
+This ensures the normalization uses only information available at time t.
+
+### Configuration Example
+
+```python
+from fxer.rl.observations import (
+    ObservationConfig,
+    NormalizationConfig,
+    NormalizationMethod,
+)
+
+config = ObservationConfig(
+    normalization=NormalizationConfig(
+        method=NormalizationMethod.FEATURE_SPECIFIC,
+        alpha=0.97,                    # EMA decay for online stats
+        min_samples=20,                 # Warmup before normalization
+        winsorize_threshold=5.0,        # Clip outliers at 5 std
+        gap_threshold_minutes=180,      # Detect weekend gaps
+        session_aware=True,             # Per-session statistics
+        clip_range=(-5.0, 5.0),         # Final output clipping
+    )
+)
+```
+
+### Usage Example
+
+```python
+# Build with normalization
+builder = ObservationBuilder(config, db_client=questdb_client)
+builder.build(start, end)
+
+# Get normalized observations during episode
+for timestamp in episode_timestamps:
+    obs = builder.get_observation(timestamp)  # Already normalized
+
+# Reset statistics between episodes
+builder.reset_normalizer()  # Start fresh for next episode
+```
+
+### Online Statistics
+
+The normalizer uses Welford's algorithm with EMA decay:
+
+1. **Warmup phase** (< min_samples): Expanding window mean/variance
+2. **Stable phase**: EMA updates with configurable alpha (0.9-0.99)
+3. **Gap handling**: Dampened updates after data gaps (weekends)
+4. **Winsorization**: Clip stat updates to mean ± threshold × std
+
+This approach adapts to changing market conditions while maintaining stability.
