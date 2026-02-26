@@ -15,7 +15,8 @@ from fxer.core.exceptions import ObservationError
 from fxer.core.types import Timeframe
 from fxer.features.engine import FeatureEngine
 from fxer.regime.types import RegimeDecision, RegimeState
-from fxer.rl.observations.config import ObservationConfig
+from fxer.rl.observations.config import NormalizationMethod, ObservationConfig
+from fxer.rl.observations.normalization import ObservationNormalizer
 from fxer.signals.base import feature_vector_to_array
 
 if TYPE_CHECKING:
@@ -80,6 +81,21 @@ class ObservationBuilder:
         # Track build state
         self._is_built = False
         self._timestamps: list[datetime] = []
+
+        # Normalization
+        self._normalizer: ObservationNormalizer | None = None
+        if config.normalization.method != NormalizationMethod.NONE:
+            norm = config.normalization
+            self._normalizer = ObservationNormalizer(
+                method=norm.method.value,
+                obs_config=config,
+                alpha=norm.alpha,
+                min_samples=norm.min_samples,
+                winsorize_threshold=norm.winsorize_threshold,
+                gap_threshold_minutes=norm.gap_threshold_minutes,
+                session_aware=norm.session_aware,
+                clip_range=norm.clip_range,
+            )
 
     @property
     def observation_size(self) -> int:
@@ -192,6 +208,7 @@ class ObservationBuilder:
 
         logger.debug(f"Building observations for {len(valid_timestamps)} timestamps")
 
+        prev_timestamp = None
         for timestamp in valid_timestamps:
             obs_parts = []
 
@@ -256,6 +273,13 @@ class ObservationBuilder:
                 # Concatenate all parts into single observation
                 observation = np.concatenate(obs_parts)
 
+                # Apply normalization if configured
+                if self._normalizer is not None:
+                    prev_features = primary_features.get(prev_timestamp) if prev_timestamp else None
+                    observation = self._normalizer.normalize_observation(
+                        observation, timestamp, prev_features
+                    )
+
                 # Verify size matches config
                 if len(observation) != self._config.observation_size:
                     raise ObservationError(
@@ -266,6 +290,7 @@ class ObservationBuilder:
 
                 self._observations[timestamp] = observation
                 self._timestamps.append(timestamp)
+                prev_timestamp = timestamp
 
         self._timestamps.sort()
         self._is_built = True
@@ -366,3 +391,12 @@ class ObservationBuilder:
         primary_tf = self._config.primary_timeframe
         features = self._tf_features.get(primary_tf, {})
         return features.get(timestamp)
+
+    def reset_normalizer(self) -> None:
+        """Reset normalization statistics.
+
+        Call between RL episodes to clear accumulated statistics,
+        ensuring each episode starts with fresh normalization state.
+        """
+        if self._normalizer is not None:
+            self._normalizer.reset()
