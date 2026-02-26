@@ -8,11 +8,15 @@ from pathlib import Path
 from typing import Generator
 from unittest.mock import MagicMock
 
+import numpy as np
 import pytest
 
 from fxer.config.settings import Settings
 from fxer.core.events import FeatureVector, NormalizedBar
 from fxer.core.types import RawBar, Timeframe
+from fxer.regime.types import RegimeState
+from fxer.rl.rewards.context import RewardContext
+from fxer.rl.types import GymAction, PositionState
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -130,6 +134,55 @@ def make_observation_config(
     """Create a default ObservationConfig for testing."""
     from fxer.rl.observations.config import ObservationConfig
     return ObservationConfig(symbol=symbol, primary_timeframe=primary_timeframe, include_regime=include_regime)
+
+
+def make_reward_context(
+    # Gym state
+    action_taken: GymAction = GymAction.FLAT,
+    position_state: PositionState = PositionState.FLAT,
+    previous_position_state: PositionState = PositionState.FLAT,
+    realized_pnl: float = 0.0,
+    unrealized_pnl: float = 0.0,
+    unrealized_pnl_pct: float = 0.0,
+    balance: float = 10000.0,
+    initial_balance: float = 10000.0,
+    drawdown_pct: float = 0.0,
+    bars_held: int = 0,
+    trade_just_opened: bool = False,
+    trade_just_closed: bool = False,
+    step_number: int = 0,
+    total_trades: int = 0,
+    # Market state
+    current_price: float = 2062.50,
+    atr_14: float | None = 3.5,
+    rsi_14: float | None = 55.0,
+    regime_state: RegimeState | None = RegimeState.RANGING,
+    regime_confidence: float | None = 0.75,
+    observation: np.ndarray | None = None,
+) -> RewardContext:
+    """Create a RewardContext with sensible defaults for testing."""
+    return RewardContext(
+        action_taken=action_taken,
+        position_state=position_state,
+        previous_position_state=previous_position_state,
+        realized_pnl=realized_pnl,
+        unrealized_pnl=unrealized_pnl,
+        unrealized_pnl_pct=unrealized_pnl_pct,
+        balance=balance,
+        initial_balance=initial_balance,
+        drawdown_pct=drawdown_pct,
+        bars_held=bars_held,
+        trade_just_opened=trade_just_opened,
+        trade_just_closed=trade_just_closed,
+        step_number=step_number,
+        total_trades=total_trades,
+        current_price=current_price,
+        atr_14=atr_14,
+        rsi_14=rsi_14,
+        regime_state=regime_state,
+        regime_confidence=regime_confidence,
+        observation=observation,
+    )
 
 
 # ---------------------------------------------------------------------------
