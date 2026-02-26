@@ -1,9 +1,41 @@
 """Configuration for RL observations."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from enum import Enum
 
 from fxer.core.types import Timeframe
 from fxer.signals.base import FEATURE_COLUMNS
+
+
+class NormalizationMethod(Enum):
+    """Normalization methods for RL observations."""
+
+    NONE = "none"
+    ONLINE_ZSCORE = "online_zscore"
+    FEATURE_SPECIFIC = "feature_specific"
+
+
+@dataclass(frozen=True, slots=True)
+class NormalizationConfig:
+    """Configuration for observation normalization.
+
+    Attributes:
+        method: Normalization method to use.
+        alpha: EMA decay factor for online stats (higher = slower adaptation).
+        min_samples: Minimum observations before switching from expanding window to EMA.
+        winsorize_threshold: Clip stat updates to mean ± threshold * std.
+        gap_threshold_minutes: Time gap triggering dampened EMA (e.g., weekends).
+        session_aware: Maintain separate statistics per trading session.
+        clip_range: Symmetric clipping range applied after normalization.
+    """
+
+    method: NormalizationMethod = NormalizationMethod.NONE
+    alpha: float = 0.97
+    min_samples: int = 20
+    winsorize_threshold: float = 5.0
+    gap_threshold_minutes: int = 180
+    session_aware: bool = False
+    clip_range: tuple[float, float] = (-5.0, 5.0)
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +91,7 @@ class ObservationConfig:
     )
     include_regime: bool = True
     regime_features: int = 4  # 3 one-hot RegimeState + 1 confidence
+    normalization: NormalizationConfig = field(default_factory=NormalizationConfig)
 
     @property
     def observation_size(self) -> int:
