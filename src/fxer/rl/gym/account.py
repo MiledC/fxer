@@ -244,6 +244,9 @@ class AccountState:
             price: Current market price.
             step: Current environment step.
         """
+        if price <= 0:
+            raise ValueError(f"Invalid price for update: {price}")
+
         # Store current price
         self._current_price = price
 

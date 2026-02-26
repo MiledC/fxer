@@ -149,42 +149,27 @@ class TestGymConfig:
         config = GymConfig(margin_call_pct=100.0)
         assert config.margin_call_pct == 100.0
 
-    def test_margin_requirement_property(self):
-        """Verify margin_requirement calculation."""
+    def test_margin_per_lot_method(self):
+        """Verify margin_per_lot calculation with dynamic price."""
         config = GymConfig(
             units_per_lot=100.0,
             leverage=100.0,
         )
 
-        # Using typical gold price of $2000 (hardcoded in property)
-        expected = (100.0 * 2000.0) / 100.0
-        assert config.margin_requirement == expected
-        assert config.margin_requirement == 2000.0
+        # At $2000/oz: margin = (100 * 2000) / 100 = $2000
+        assert config.margin_per_lot(2000.0) == 2000.0
 
-    def test_max_position_lots_property(self):
-        """Verify max_position_lots calculation."""
-        config = GymConfig(
-            initial_balance=10_000.0,
-            units_per_lot=100.0,
-            leverage=100.0,
-        )
-
-        # margin_requirement = 2000.0
-        # max_lots = (10000 * 0.95) / 2000 = 4.75
-        expected = (10_000.0 * 0.95) / 2000.0
-        assert config.max_position_lots == expected
-        assert config.max_position_lots == 4.75
+        # At $2500/oz: margin = (100 * 2500) / 100 = $2500
+        assert config.margin_per_lot(2500.0) == 2500.0
 
     def test_different_leverage_affects_margin(self):
         """Verify leverage changes affect margin calculations."""
         config_low = GymConfig(leverage=50.0)
         config_high = GymConfig(leverage=200.0)
 
+        price = 2000.0
         # Lower leverage = higher margin requirement
-        assert config_low.margin_requirement > config_high.margin_requirement
-
-        # Lower leverage = fewer max lots
-        assert config_low.max_position_lots < config_high.max_position_lots
+        assert config_low.margin_per_lot(price) > config_high.margin_per_lot(price)
 
     def test_equality_and_hashing(self):
         """Verify equality and hashing work correctly for frozen dataclass."""

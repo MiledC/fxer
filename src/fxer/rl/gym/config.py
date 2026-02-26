@@ -53,16 +53,13 @@ class GymConfig:
         if not 0 < self.margin_call_pct <= 100:
             raise ValueError(f"margin_call_pct must be between 0 and 100, got {self.margin_call_pct}")
 
-    @property
-    def margin_requirement(self) -> float:
-        """Calculate margin requirement per lot."""
-        # Assuming a typical gold price around $2000
-        # This should be calculated dynamically based on current price
-        typical_price = 2000.0
-        return (self.units_per_lot * typical_price) / self.leverage
+    def margin_per_lot(self, price: float) -> float:
+        """Calculate margin requirement per lot at a given price.
 
-    @property
-    def max_position_lots(self) -> float:
-        """Calculate maximum position size in lots based on margin."""
-        # Conservative estimate using typical price
-        return (self.initial_balance * 0.95) / self.margin_requirement
+        Args:
+            price: Current market price.
+
+        Returns:
+            Margin required per lot in USD.
+        """
+        return (self.units_per_lot * price) / self.leverage
