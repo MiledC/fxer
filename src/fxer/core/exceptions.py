@@ -224,3 +224,22 @@ class ObservationError(RLError):
         super().__init__(message, details)
         self.timestamp = timestamp
         self.timeframe = timeframe
+
+
+class GymError(RLError):
+    """Raised when Gym environment operations fail."""
+
+    def __init__(
+        self,
+        message: str,
+        episode_step: int | None = None,
+        account_state: str | None = None,
+    ):
+        details = {}
+        if episode_step is not None:
+            details["episode_step"] = episode_step
+        if account_state:
+            details["account_state"] = account_state
+        super().__init__(message, details)
+        self.episode_step = episode_step
+        self.account_state = account_state

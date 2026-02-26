@@ -69,6 +69,14 @@ class Settings(BaseSettings):
     regime_pelt_window_size: int = 100
     regime_pelt_min_size: int = 10
 
+    # RL Gym settings
+    rl_gym_initial_balance: float = 10_000.0
+    rl_gym_leverage: float = 100.0
+    rl_gym_commission_per_lot: float = 7.0
+    rl_gym_episode_length: int = 2016
+    rl_gym_lot_size: float = 0.01
+    rl_gym_margin_call_pct: float = 50.0
+
 
 # Global settings instance
 settings = Settings()

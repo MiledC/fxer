@@ -185,6 +185,39 @@ def make_reward_context(
     )
 
 
+def make_gym_config(
+    symbol: str = "XAUUSD",
+    mode: "EpisodeMode | None" = None,
+    initial_balance: float = 10_000.0,
+    leverage: float = 100.0,
+    units_per_lot: float = 100.0,
+    commission_per_lot: float = 7.0,
+    episode_length: int = 2016,
+    lot_size: float = 0.01,
+    margin_call_pct: float = 50.0,
+    **kwargs,
+) -> "GymConfig":
+    """Create a GymConfig with sensible defaults for testing."""
+    from fxer.rl.gym.config import GymConfig
+    from fxer.rl.types import EpisodeMode
+
+    if mode is None:
+        mode = EpisodeMode.TRAINING
+
+    return GymConfig(
+        symbol=symbol,
+        mode=mode,
+        initial_balance=initial_balance,
+        leverage=leverage,
+        units_per_lot=units_per_lot,
+        commission_per_lot=commission_per_lot,
+        episode_length=episode_length,
+        lot_size=lot_size,
+        margin_call_pct=margin_call_pct,
+        **kwargs,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
