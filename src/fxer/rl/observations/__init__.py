@@ -7,11 +7,19 @@ from fxer.rl.observations.config import (
     ObservationConfig,
     TimeframeWindowConfig,
 )
+from fxer.rl.observations.normalization import (
+    FeatureClass,
+    ObservationNormalizer,
+    TradingSession,
+)
 
 __all__ = [
+    "FeatureClass",
     "NormalizationConfig",
     "NormalizationMethod",
     "ObservationBuilder",
     "ObservationConfig",
+    "ObservationNormalizer",
     "TimeframeWindowConfig",
+    "TradingSession",
 ]
