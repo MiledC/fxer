@@ -56,3 +56,7 @@ INDICATOR_WARMUP = {
 
 # Maximum warmup needed across all indicators
 MAX_WARMUP_BARS = max(INDICATOR_WARMUP.values())
+
+# Gold trading constants
+GOLD_UNITS_PER_LOT = 100.0  # 100 ounces per standard lot
+GOLD_TICK_SIZE = 0.01  # Minimum price movement
